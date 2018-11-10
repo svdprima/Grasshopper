@@ -1,9 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#ifndef TABLES_H
+#define TABLES_H
 
-static uint8_t S[0x100] = 
+constexpr uint8_t S[0x100] =
 {
     0xFC, 0xEE, 0xDD, 0x11, 0xCF, 0x6E, 0x31, 0x16, 	// 00..07
 	0xFB, 0xC4, 0xFA, 0xDA, 0x23, 0xC5, 0x04, 0x4D, 	// 08..0F
@@ -39,7 +37,7 @@ static uint8_t S[0x100] =
     0xD1, 0x66, 0xAF, 0xC2, 0x39, 0x4B, 0x63, 0xB6      // F8..FF
 };
 
-static uint8_t invS [0x100] =
+constexpr uint8_t invS[0x100] =
 {
     0xA5, 0x2D, 0x32, 0x8F, 0x0E, 0x30, 0x38, 0xC0, 	// 00..07
 	0x54, 0xE6, 0x9E, 0x39, 0x55, 0x7E, 0x52, 0x91, 	// 08..0F
@@ -75,112 +73,9 @@ static uint8_t invS [0x100] =
     0xD6, 0x20, 0x0A, 0x08, 0x00, 0x4C, 0xD7, 0x74	    // F8..FF
 };
 
-static uint8_t lin [0x10] = 
+static constexpr uint8_t lin[0x10] =
 {
     0x94, 0x20, 0x85, 0x10, 0xC2, 0xC0, 0x01, 0xFB,
     0x01, 0xC0, 0xC2, 0x10, 0x85, 0x20, 0x94, 0x01
 };
-
-
-uint8_t mul (uint8_t right, uint8_t left)
-{
-    //polynomial multiplication 
-    //p(x) = x^8 + x^7 + x^6 + x + 1 --> 111000011 --> omiting the high-ordered bit (always 1) = 0xC3
-    //for the algorithm, see
-    //https://en.wikipedia.org/wiki/Finite_field_arithmetic
-    //Russian peasant multiplication
-    //TODO this algorythm has time and cache leaks, should be changed
-    uint8_t product = 0;
-	while (right && left)
-    {		
-		if (right & 1)
-			product ^= left;
-		left = (left << 1) ^ (left & 0x80 ? 0xC3 : 0x00); //0xC3 are coef-s of p(x) (first one omited)
-		right >>= 1;
-	}
-    return product;    
-}
-
-void linear (uint8_t* array, const unsigned int block_size)
-{
-    //applying linear transform
-    //using linear feedback shift register
-    uint8_t tmp = 0;
-    for (int i = 15; i >= 0; i--)
-    {
-        tmp = array[block_size - 1];
-        for (int j = block_size - 2; j >= 0; j--)
-        {
-            tmp ^= mul (lin[j], array[j]); // ? should we overload * instead?
-            array[j + 1] = array[j];
-        }
-        array[0] = tmp;
-    }
-}
-
-void F (uint8_t* a1, uint8_t* a0, uint8_t k[32][16], unsigned int ind, const unsigned int block_size)
-{
-    uint8_t tmp [16];
-    memcpy (tmp, a1, block_size * sizeof (uint8_t));
-    for (unsigned int i = 0; i < block_size; i++)
-    {
-        a1[i] ^= k[ind][i]; 
-    }
-    for (unsigned int i = 0; i < block_size; i++)
-    {
-        a1[i] = S[a1[i]];
-    }
-    linear (a1, block_size);
-    for (unsigned int i = 0; i < block_size; i++)
-    {
-        a1[i] ^= a0[i];
-    }
-    memcpy (a0, tmp, block_size * sizeof (uint8_t));
-}
-
-void keygen (uint8_t arr[10][16], const unsigned int block_size)
-{
-    uint8_t C[32][16] = {};
-    for (uint8_t i = 0; i < 32; i++)
-    {
-        C[i][15] = i + 1;
-        linear (C[i], block_size);
-    }
-    uint8_t tmp [32] = {};
-    for (unsigned int i = 0; i < 4; i++)
-    {
-        memcpy (tmp, arr[2 * i], block_size * sizeof (uint8_t));
-        memcpy (tmp + 16, arr [2 * i + 1], block_size * sizeof (uint8_t));
-        F (tmp, tmp + block_size, C, 8 * i, block_size * sizeof (uint8_t));
-        for (unsigned int j = 1; j < 8; j++)
-        {
-            F (tmp, tmp + block_size, C, 8 * i + j, block_size);
-        }
-        memcpy (arr[2 * i + 2], tmp, block_size * sizeof (uint8_t));
-        memcpy (arr[2 * i + 3], tmp + block_size, block_size * sizeof (uint8_t));
-    }
-}
-void encrypt (uint8_t* block, uint8_t* key, const unsigned int block_size)
-{
-    uint8_t keys [10][16];
-    memcpy (keys[0], key, block_size * sizeof (uint8_t));
-    memcpy (keys[1], key + block_size, block_size * sizeof (uint8_t));
-    keygen (keys, block_size);
-    for (unsigned int k = 0; k < 10; k++)
-    {
-        //XORing with the key1
-        for (unsigned int i = 0; i < block_size; i++)
-            block[i] ^= keys[k][i];  
-        if (k < 9)
-        {
-            //applying nonlinear transorm
-            for (unsigned int i = 0; i < block_size; i++)
-                block[i] = S[block[i]];
-            //applying linear transform
-            linear (block, block_size);
-        }
-    }
-    for (unsigned int i = 0; i < block_size; i++)
-        printf ("%02x", block[i]);
-    printf ("\n");
-}
+#endif

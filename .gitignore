@@ -1,0 +1,6 @@
+*.o
+grasshopper
+.directory
+*.swo
+*.swp
+callgrind.out
