@@ -1,41 +1,56 @@
 #include <algorithm>
 #include <functional>
-#include <stdio.h>
+#include <cstdio>
 #include "grasshopper.hpp"
 #include "tables.hpp"
 
-void Grasshopper::Encrypt(Block& data, const Key& key)
+Grasshopper::Grasshopper(const Key& key)
 {
-    EncryptBlock(data, key);
+    GenerateKeys(key);
+    GenerateMulTable();
+
+#ifdef VERBOSE
+    printf("keys:\n");
+    for (const auto& key: keys)
+        DumpBlock(key);
+#endif
 }
 
-void Grasshopper::Decrypt(Block& data, const Key& key)
+void Grasshopper::Encrypt(std::vector<Block>& data)
+{
+    for (auto& block: data)
+        EncryptBlock(block);
+}
+
+void Grasshopper::Decrypt(std::vector<Block>& data)
 {
     // TODO
 }
 
-void Grasshopper::EncryptBlock(Block& data, const Key& key)
+void Grasshopper::EncryptBlock(Block& data)
 {
-    const Keys& keys = GenerateKeys(key);
-    for (const auto& key: keys)
-    {
-        for (auto x: key)
-            printf("%02x", x);
-        printf("\n");
-    }
+#ifdef VERBOSE
+    printf("before:\n");
+    DumpBlock(data);
+#endif
+
     for (unsigned i = 0; i < num_rounds - 1; ++i)
         ApplyXSL(data, keys[i]);
     ApplyX(data, keys[num_rounds - 1]);
+
+#ifdef VERBOSE
+    printf("after:\n");
+    DumpBlock(data);
+#endif
 }
 
-void Grasshopper::DecryptBlock(Block& block, const Key& key)
+void Grasshopper::DecryptBlock(Block& data)
 {
     // TODO
 }
 
-Grasshopper::Keys Grasshopper::GenerateKeys(const Key& key)
+void Grasshopper::GenerateKeys(const Key& key)
 {
-    Keys keys;
     std::copy(key.begin(), key.begin() + block_size, keys[0].begin());
     std::copy(key.begin() + block_size, key.end(), keys[1].begin());
     for (unsigned i = 1; i < num_rounds / 2; ++i)
@@ -50,21 +65,24 @@ Grasshopper::Keys Grasshopper::GenerateKeys(const Key& key)
             ApplyF(keys[2 * i], keys[2 * i + 1], C);
         }
     }
-    return keys;
 }
 
-uint8_t Grasshopper::PolynomMul(uint8_t left, uint8_t right)
+void Grasshopper::GenerateMulTable()
 {
-    // p(x) = x^8 + x^7 + x^6 + x + 1 => 0b111000011 => 0xC3 (without MSB)
-    uint8_t product = 0;
-    while (left && right)
-    {
-        if (right & 1)
-            product ^= left;
-        left = (left << 1) ^ (left & 0x80 ? 0xC3 : 0x00);
-        right >>= 1;
-    }
-    return product;
+    for (unsigned i = 0; i < 256; ++i)
+        for (unsigned j = 0; j < 256; ++j)
+        {
+            // p(x) = x^8 + x^7 + x^6 + x + 1 => 0b111000011 => 0xC3 (without MSB)
+            uint8_t left = i, right = j,res = 0;
+            while (left && right)
+            {
+                if (right & 1)
+                    res ^= left;
+                left = (left << 1) ^ (left & 0x80 ? 0xC3 : 0x00);
+                right >>= 1;
+            }
+            mul_table[i][j] = res;
+        }
 }
 
 void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
@@ -101,8 +119,15 @@ void Grasshopper::ApplyL(Block& data)
     {
         uint8_t tmp = 0;
         for (size_t i = 0; i < block_size; ++i)
-            tmp ^= PolynomMul(data[i], lin[i]);
+            tmp ^= mul_table[data[i]][lin[i]];
         std::copy_backward(data.begin(), data.end() - 1, data.end());
         data[0] = tmp;
     }
+}
+
+void DumpBlock(const Grasshopper::Block& block)
+{
+    for (auto x: block)
+        printf("%02x", x);
+    printf("\n");
 }

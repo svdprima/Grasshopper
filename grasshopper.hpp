@@ -2,6 +2,7 @@
 #define GRASSHOPPER_H
 
 #include <array>
+#include <vector>
 #include <cstdint>
 
 class Grasshopper
@@ -13,16 +14,19 @@ public:
     using Block = std::array<uint8_t, block_size>;
     using Key = std::array<uint8_t, block_size * 2>;
 
-    void Encrypt(Block& data, const Key& key);
-    void Decrypt(Block& data, const Key& key);
+    Grasshopper(const Key& key);
+
+    void Encrypt(std::vector<Block>& data);
+    void Decrypt(std::vector<Block>& data);
 private:
-    using Keys = std::array<Block, num_rounds>;
+    std::array<Block, num_rounds> keys;
+    uint8_t mul_table[256][256];
 
-    void EncryptBlock(Block& data, const Key& key);
-    void DecryptBlock(Block& data, const Key& key);
+    void EncryptBlock(Block& data);
+    void DecryptBlock(Block& data);
 
-    Keys GenerateKeys(const Key& key);
-    uint8_t PolynomMul(uint8_t left, uint8_t right);
+    void GenerateKeys(const Key& key);
+    void GenerateMulTable();
 
     void ApplyF(Block& data0, Block& data1, const Block& key);
     void ApplyXSL(Block& data, const Block& key);
@@ -30,5 +34,7 @@ private:
     void ApplyS(Block& data);
     void ApplyL(Block& data);
 };
+
+void DumpBlock(const Grasshopper::Block& block);
 
 #endif

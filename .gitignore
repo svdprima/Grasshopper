@@ -1,5 +1,6 @@
 *.o
 grasshopper
+output.txt
 .directory
 *.swo
 *.swp
