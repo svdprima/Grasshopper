@@ -78,10 +78,10 @@ Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
 void Grasshopper::GenerateMulTable()
 {
     for (unsigned i = 0; i < 256; ++i)
-        for (unsigned j = 0; j < 256; ++j)
+        for (unsigned j = 0; j < 16; ++j)
         {
             // p(x) = x^8 + x^7 + x^6 + x + 1 => 0b111000011 => 0xC3 (without MSB)
-            uint8_t left = i, right = j,res = 0;
+            uint8_t left = i, right = lin[j],res = 0;
             while (left && right)
             {
                 if (right & 1)
@@ -126,8 +126,8 @@ void Grasshopper::ApplyL(Block& data)
     for (unsigned i = 0; i < block_size; ++i)
     {
         uint8_t tmp = 0;
-        for (size_t i = 0; i < block_size; ++i)
-            tmp ^= mul_table[data[i]][lin[i]];
+        for (size_t j = 0; j < block_size; ++j)
+            tmp ^= mul_table[data[j]][j];
         std::copy_backward(data.begin(), data.end() - 1, data.end());
         data[0] = tmp;
     }

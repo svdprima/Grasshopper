@@ -3,7 +3,7 @@ CFLAGS = -std=c++11 -Wall -Wextra
 # DEBUG mode
 CFLAGS += -g
 # RELEASE mode
-#CFLAGS += -O2 -DNDEBUG
+#CFLAGS += -O3 -DNDEBUG
 LDFLAGS =
 
 APP_NAME = grasshopper
