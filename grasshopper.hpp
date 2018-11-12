@@ -23,12 +23,14 @@ private:
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
     uint8_t mul_table[256][16];
+    Block coef_table[num_rounds / 2 - 1][8];
 
     void EncryptBlock(Block& data, const KeyPair& key);
     void DecryptBlock(Block& data, const KeyPair& key);
 
     Keys GenerateKeys(const KeyPair& key);
     void GenerateMulTable();
+    void GenerateCoefTable();
 
     void ApplyF(Block& data0, Block& data1, const Block& key);
     void ApplyXSL(Block& data, const Block& key);

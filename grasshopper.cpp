@@ -7,7 +7,7 @@
 Grasshopper::Grasshopper()
 {
     GenerateMulTable();
-
+    GenerateCoefTable();
 }
 
 void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
@@ -65,12 +65,7 @@ Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
         keys[2 * i    ] = keys[2 * i - 2];
         keys[2 * i + 1] = keys[2 * i - 1];
         for (unsigned j = 0; j < 8; ++j)
-        {
-            Block C{{}};
-            C.back() = (i - 1) * 8 + j + 1;
-            ApplyL(C);
-            ApplyF(keys[2 * i], keys[2 * i + 1], C);
-        }
+            ApplyF(keys[2 * i], keys[2 * i + 1], coef_table[i - 1][j]);
     }
     return keys;
 }
@@ -90,6 +85,18 @@ void Grasshopper::GenerateMulTable()
                 right >>= 1;
             }
             mul_table[i][j] = res;
+        }
+}
+
+void Grasshopper::GenerateCoefTable()
+{
+    for (unsigned i = 0; i < num_rounds / 2 - 1; ++i)
+        for (unsigned j = 0; j < 8; ++j)
+        {
+            Block& C = coef_table[i][j];
+            C.fill(0);
+            C.back() = i * 8 + j + 1;
+            ApplyL(C);
         }
 }
 
