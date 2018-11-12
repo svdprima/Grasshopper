@@ -47,7 +47,7 @@ int main()
     // encrypt
     Timer timer;
     timer.Start();
-    Grasshopper(key).Encrypt(buf);
+    Grasshopper().Encrypt(buf, key);
     timer.Finish();
     printf("Time: %lu ms\n", timer.GetMilliseconds());
     // write data

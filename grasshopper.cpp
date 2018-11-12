@@ -4,34 +4,42 @@
 #include "grasshopper.hpp"
 #include "tables.hpp"
 
-Grasshopper::Grasshopper(const Key& key)
+Grasshopper::Grasshopper()
 {
-    GenerateKeys(key);
     GenerateMulTable();
 
-#ifdef VERBOSE
-    printf("keys:\n");
-    for (const auto& key: keys)
-        DumpBlock(key);
-#endif
 }
 
-void Grasshopper::Encrypt(std::vector<Block>& data)
+void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
 {
+    KeyPair current_key;
+    std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
+    std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
     for (auto& block: data)
-        EncryptBlock(block);
+    {
+        EncryptBlock(block, current_key);
+        ApplyX(current_key.first , block);
+        ApplyX(current_key.second, block);
+    }
 }
 
-void Grasshopper::Decrypt(std::vector<Block>& data)
+void Grasshopper::Decrypt(std::vector<Block>& data, const Key& key)
 {
     // TODO
 }
 
-void Grasshopper::EncryptBlock(Block& data)
+void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
 {
 #ifdef VERBOSE
     printf("before:\n");
     DumpBlock(data);
+#endif
+
+    const Keys& keys = GenerateKeys(key);
+#ifdef VERBOSE
+    printf("keys:\n");
+    for (const auto& key: keys)
+        DumpBlock(key);
 #endif
 
     for (unsigned i = 0; i < num_rounds - 1; ++i)
@@ -44,15 +52,14 @@ void Grasshopper::EncryptBlock(Block& data)
 #endif
 }
 
-void Grasshopper::DecryptBlock(Block& data)
+void Grasshopper::DecryptBlock(Block& data, const KeyPair& key)
 {
     // TODO
 }
 
-void Grasshopper::GenerateKeys(const Key& key)
+Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
 {
-    std::copy(key.begin(), key.begin() + block_size, keys[0].begin());
-    std::copy(key.begin() + block_size, key.end(), keys[1].begin());
+    Keys keys{{key.first, key.second}};
     for (unsigned i = 1; i < num_rounds / 2; ++i)
     {
         keys[2 * i    ] = keys[2 * i - 2];
@@ -65,6 +72,7 @@ void Grasshopper::GenerateKeys(const Key& key)
             ApplyF(keys[2 * i], keys[2 * i + 1], C);
         }
     }
+    return keys;
 }
 
 void Grasshopper::GenerateMulTable()

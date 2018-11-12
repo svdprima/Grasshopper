@@ -22,4 +22,4 @@ profile: $(APP_NAME)
 	kcachegrind callgrind.out
 
 clean:
-	rm -f *.o $(APP_NAME)
+	rm -f *.o $(APP_NAME) callgrind.out

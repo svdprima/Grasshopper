@@ -3,6 +3,7 @@
 
 #include <array>
 #include <vector>
+#include <utility>
 #include <cstdint>
 
 class Grasshopper
@@ -14,18 +15,19 @@ public:
     using Block = std::array<uint8_t, block_size>;
     using Key = std::array<uint8_t, block_size * 2>;
 
-    Grasshopper(const Key& key);
+    Grasshopper();
 
-    void Encrypt(std::vector<Block>& data);
-    void Decrypt(std::vector<Block>& data);
+    void Encrypt(std::vector<Block>& data, const Key& key);
+    void Decrypt(std::vector<Block>& data, const Key& key);
 private:
-    std::array<Block, num_rounds> keys;
+    using Keys = std::array<Block, num_rounds>;
+    using KeyPair = std::pair<Block, Block>;
     uint8_t mul_table[256][256];
 
-    void EncryptBlock(Block& data);
-    void DecryptBlock(Block& data);
+    void EncryptBlock(Block& data, const KeyPair& key);
+    void DecryptBlock(Block& data, const KeyPair& key);
 
-    void GenerateKeys(const Key& key);
+    Keys GenerateKeys(const KeyPair& key);
     void GenerateMulTable();
 
     void ApplyF(Block& data0, Block& data1, const Block& key);
