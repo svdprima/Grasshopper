@@ -23,6 +23,8 @@ private:
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
     uint8_t mul_table[256][16];
+    uint8_t l_table[16][16] = {};
+    uint8_t ls_table[16][256][16] = {};
     Block coef_table[num_rounds / 2 - 1][8];
 
     void EncryptBlock(Block& data, const KeyPair& key);
@@ -31,12 +33,15 @@ private:
     Keys GenerateKeys(const KeyPair& key);
     void GenerateMulTable();
     void GenerateCoefTable();
+    void GenerateLTable();
+    uint8_t PolyMul(uint8_t left, uint8_t right);
 
     void ApplyF(Block& data0, Block& data1, const Block& key);
     void ApplyXSL(Block& data, const Block& key);
     void ApplyX(Block& data, const Block& key);
     void ApplyS(Block& data);
     void ApplyL(Block& data);
+    void ApplyLS(Block& data);
 };
 
 void DumpBlock(const Grasshopper::Block& block);
