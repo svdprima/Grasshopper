@@ -1,10 +1,6 @@
 #include <chrono>
-#include <cstdio>
-#include <cstdlib>
-#include "grasshopper.hpp"
-
-Grasshopper::Key key {{0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-                       0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef}};
+#include <iostream>
+#include "encryptor.hpp"
 
 class Timer
 {
@@ -28,48 +24,33 @@ private:
 
 int main()
 {
-    FILE *f;
-    // read data
-    if (!(f = fopen("input.txt", "r")))
-    {
-        printf("Can not open input.txt\n");
-        exit(EXIT_FAILURE);
-    }
-    fseek(f, 0, SEEK_END);
-    size_t file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    size_t num_blocks = (file_size / Grasshopper::block_size) +
-                        (file_size % Grasshopper::block_size ? 1 : 0);
-    printf("Number of blocks: %lu\n", num_blocks);
-    std::vector<Grasshopper::Block> buf(num_blocks);
-    fread(buf.data(), Grasshopper::block_size, num_blocks, f);
-    fclose(f);
-    Grasshopper G;
+    Encryptor E;
+
+    // encryption
+    E.ReadText("input.txt");
+
     Timer timer;
     // encrypt
     timer.Start();
-    G.Encrypt(buf, key);
+
+    E.Encrypt();
+
     timer.Finish();
-    printf("Encrypt time: %lu ms\n", timer.GetMilliseconds());
-    if (!(f = fopen("encrypted.txt", "w")))
-    {
-        printf("Can not open output.txt\n");
-        exit(EXIT_FAILURE);
-    }
-    fwrite(buf.data(), Grasshopper::block_size, num_blocks, f);
-    fclose(f);
-    // decrypt
+    std::cout << "Encrypt time: " << timer.GetMilliseconds() << " ms\n";
+
+    E.SaveText("encrypted.txt");
+
+    // decryption
+    E.ReadText("encrypted.txt", true);
+
     timer.Start();
-    G.Decrypt(buf, key);
+
+    E.Decrypt();
+
     timer.Finish();
-    printf("Decrypt time: %lu ms\n", timer.GetMilliseconds());
-    if (!(f = fopen("decrypted.txt", "w")))
-    {
-        printf("Can not open output.txt\n");
-        exit(EXIT_FAILURE);
-    }
-    fwrite(buf.data(), Grasshopper::block_size, num_blocks, f);
-    fclose(f);
+    std::cout << "Decrypt time: " << timer.GetMilliseconds() << " ms\n";
+
+    E.SaveText("decrypted.txt", true);
 
     return 0;
 }
