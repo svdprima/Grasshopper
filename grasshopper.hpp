@@ -41,6 +41,11 @@ private:
     void ApplyX(Block& data, const Block& key);
     void ApplyS(Block& data);
     void ApplyL(Block& data);
+
+    void ApplyInvXLS(Block& data, const Block& key);
+    void ApplyInvS(Block& data);
+    void ApplyInvL(Block& data);
+
     void ApplyLS(Block& data);
 };
 

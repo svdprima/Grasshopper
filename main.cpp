@@ -47,7 +47,8 @@ int main()
     // encrypt
     Timer timer;
     timer.Start();
-    Grasshopper().Encrypt(buf, key);
+    Grasshopper G;
+    G.Encrypt(buf, key);
     timer.Finish();
     printf("Time: %lu ms\n", timer.GetMilliseconds());
     // write data
@@ -58,5 +59,15 @@ int main()
     }
     fwrite(buf.data(), Grasshopper::block_size, num_blocks, f);
     fclose(f);
+
+    G.Decrypt(buf, key);
+    if (!(f = fopen("decrypted.txt", "w")))
+    {
+        printf("Can not open output.txt\n");
+        exit(EXIT_FAILURE);
+    }
+    fwrite(buf.data(), Grasshopper::block_size, num_blocks, f);
+    fclose(f);
+
     return 0;
 }

@@ -29,13 +29,28 @@ void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
 
 void Grasshopper::Decrypt(std::vector<Block>& data, const Key& key)
 {
-    // TODO
+    KeyPair current_key;
+    std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
+    std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
+
+    KeyPair tmp_key;
+    tmp_key = current_key;
+
+    for (auto& block: data)
+    {
+        ApplyX(tmp_key.first , block);
+        ApplyX(tmp_key.second, block);
+
+        DecryptBlock(block, current_key);
+
+        current_key = tmp_key;
+    }
 }
 
 void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
 {
 #ifdef VERBOSE
-    printf("before:\n");
+    printf("before encryption:\n");
     DumpBlock(data);
 #endif
 
@@ -53,14 +68,33 @@ void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
     ApplyX(data, keys[num_rounds - 1]);
 
 #ifdef VERBOSE
-    printf("after:\n");
+    printf("after encryption:\n");
     DumpBlock(data);
 #endif
 }
 
 void Grasshopper::DecryptBlock(Block& data, const KeyPair& key)
 {
-    // TODO
+#ifdef VERBOSE
+    printf("before decryption:\n");
+    DumpBlock(data);
+#endif
+
+    const Keys& keys = GenerateKeys(key);
+#ifdef VERBOSE
+    printf("keys:\n");
+    for (const auto& key: keys)
+        DumpBlock(key);
+#endif
+
+    for (unsigned i = 0; i < num_rounds - 1; ++i)
+        ApplyInvXLS(data, keys[num_rounds - 1 - i]);
+    ApplyX(data, keys[0]);
+
+#ifdef VERBOSE
+    printf("after decryption:\n");
+    DumpBlock(data);
+#endif
 }
 
 Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
@@ -128,6 +162,13 @@ void Grasshopper::ApplyXSL(Block& data, const Block& key)
     ApplyLS (data);
 }
 
+void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
+{
+    ApplyX(data, key);
+    ApplyInvL(data);
+    ApplyInvS(data);
+}
+
 // Xor transform
 void Grasshopper::ApplyX(Block& data, const Block& key)
 {
@@ -140,6 +181,11 @@ void Grasshopper::ApplyS(Block& data)
     std::transform(data.begin(), data.end(), data.begin(), [](uint8_t idx) {return S[idx];});
 }
 
+void Grasshopper::ApplyInvS(Block& data)
+{
+    std::transform(data.begin(), data.end(), data.begin(), [](uint8_t idx) {return invS[idx];});
+}
+
 // Linear transform
 void Grasshopper::ApplyL(Block& data)
 {
@@ -150,6 +196,21 @@ void Grasshopper::ApplyL(Block& data)
             tmp ^= mul_table[data[j]][j];
         std::copy_backward(data.begin(), data.end() - 1, data.end());
         data[0] = tmp;
+    }
+}
+
+void Grasshopper::ApplyInvL(Block& data)
+{
+    for (unsigned i = 0; i < block_size; ++i)
+    {
+        uint8_t elem = data[0];
+        std::copy(data.begin() + 1, data.end(), data.begin());
+        data[block_size - 1] = elem;
+
+        uint8_t tmp = 0;
+        for (size_t j = 0; j < block_size; ++j)
+            tmp ^= mul_table[data[j]][j];
+        data[15] = tmp;
     }
 }
 
