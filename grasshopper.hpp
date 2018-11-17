@@ -23,7 +23,6 @@ private:
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
     uint8_t mul_table[256][16];
-    uint8_t l_table[16][16] = {};
     uint8_t ls_table[16][256][16] = {};
     Block coef_table[num_rounds / 2 - 1][8];
 

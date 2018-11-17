@@ -9,9 +9,9 @@
 
 Grasshopper::Grasshopper()
 {
-    //GenerateMulTable();
+    GenerateMulTable();
     GenerateCoefTable();
-    GenerateLTable();
+    //GenerateLTable();
 }
 
 void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
@@ -157,9 +157,9 @@ void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
 void Grasshopper::ApplyXSL(Block& data, const Block& key)
 {
     ApplyX(data, key);
-    //ApplyS(data);
-    //ApplyL(data);
-    ApplyLS (data);
+    ApplyS(data);
+    ApplyL(data);
+    //ApplyLS (data);
 }
 
 void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
@@ -216,6 +216,7 @@ void Grasshopper::ApplyInvL(Block& data)
 
 void Grasshopper::GenerateLTable()
 {
+    uint8_t l_table[16][16] = {};
     //initializing the martix
     for (size_t i = 0; i < block_size; i++)
     {
