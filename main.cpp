@@ -44,23 +44,25 @@ int main()
     std::vector<Grasshopper::Block> buf(num_blocks);
     fread(buf.data(), Grasshopper::block_size, num_blocks, f);
     fclose(f);
-    // encrypt
-    Timer timer;
-    timer.Start();
     Grasshopper G;
+    Timer timer;
+    // encrypt
+    timer.Start();
     G.Encrypt(buf, key);
     timer.Finish();
-    printf("Time: %lu ms\n", timer.GetMilliseconds());
-    // write data
-    if (!(f = fopen("ecnrypted.txt", "w")))
+    printf("Encrypt time: %lu ms\n", timer.GetMilliseconds());
+    if (!(f = fopen("encrypted.txt", "w")))
     {
         printf("Can not open output.txt\n");
         exit(EXIT_FAILURE);
     }
     fwrite(buf.data(), Grasshopper::block_size, num_blocks, f);
     fclose(f);
-
+    // decrypt
+    timer.Start();
     G.Decrypt(buf, key);
+    timer.Finish();
+    printf("Decrypt time: %lu ms\n", timer.GetMilliseconds());
     if (!(f = fopen("decrypted.txt", "w")))
     {
         printf("Can not open output.txt\n");

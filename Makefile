@@ -1,5 +1,5 @@
-CC = g++
-CFLAGS = -std=c++11 -Wall -Wextra
+CC = clang++
+CFLAGS = -std=c++11 -Wall -Wextra -msse
 # DEBUG mode
 CFLAGS += -g
 # RELEASE mode

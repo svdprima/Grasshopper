@@ -1,6 +1,7 @@
 *.o
 grasshopper
-output.txt
+encrypted.txt
+decrypted.txt
 .directory
 *.swo
 *.swp

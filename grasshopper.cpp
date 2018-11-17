@@ -1,17 +1,15 @@
 #include <algorithm>
 #include <functional>
 #include <cstdio>
-#include <string.h>
-#include <fstream>
-#include <iostream>
+#include <xmmintrin.h>
 #include "grasshopper.hpp"
 #include "tables.hpp"
 
 Grasshopper::Grasshopper()
 {
-    GenerateMulTable();
     GenerateCoefTable();
-    GenerateLTable();
+    GenerateEncTable();
+    GenerateDecTable();
 }
 
 void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
@@ -33,38 +31,31 @@ void Grasshopper::Decrypt(std::vector<Block>& data, const Key& key)
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
-    KeyPair tmp_key;
-    tmp_key = current_key;
+    KeyPair tmp_key(current_key);
 
     for (auto& block: data)
     {
         ApplyX(tmp_key.first , block);
         ApplyX(tmp_key.second, block);
-
         DecryptBlock(block, current_key);
-
         current_key = tmp_key;
     }
 }
 
 void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
 {
-#ifdef VERBOSE
-    printf("before encryption:\n");
-    DumpBlock(data);
-#endif
-
     const Keys& keys = GenerateKeys(key);
+
 #ifdef VERBOSE
     printf("keys:\n");
     for (const auto& key: keys)
         DumpBlock(key);
+    printf("before encryption:\n");
+    DumpBlock(data);
 #endif
 
     for (unsigned i = 0; i < num_rounds - 1; ++i)
-    {
         ApplyXSL(data, keys[i]);
-    }
     ApplyX(data, keys[num_rounds - 1]);
 
 #ifdef VERBOSE
@@ -75,16 +66,14 @@ void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
 
 void Grasshopper::DecryptBlock(Block& data, const KeyPair& key)
 {
-#ifdef VERBOSE
-    printf("before decryption:\n");
-    DumpBlock(data);
-#endif
-
     const Keys& keys = GenerateKeys(key);
+
 #ifdef VERBOSE
     printf("keys:\n");
     for (const auto& key: keys)
         DumpBlock(key);
+    printf("before decryption:\n");
+    DumpBlock(data);
 #endif
 
     for (unsigned i = 0; i < num_rounds - 1; ++i)
@@ -95,6 +84,27 @@ void Grasshopper::DecryptBlock(Block& data, const KeyPair& key)
     printf("after decryption:\n");
     DumpBlock(data);
 #endif
+}
+
+void Grasshopper::ApplyXSL(Block& data, const Block& key)
+{
+    ApplyX(data, key);
+    Block tmp{};
+#pragma unroll(16)
+    for (size_t i = 0; i < block_size; i++)
+        ApplyX(tmp, enc_ls_table[i][data[i]]);
+    data = tmp;
+}
+
+void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
+{
+    ApplyX(data, key);
+    Block tmp{};
+#pragma unroll(16)
+    for (size_t i = 0; i < block_size; i++)
+        ApplyX(tmp, dec_ls_table[i][data[i]]);
+    std::transform(tmp.begin(), tmp.end(), data.begin(),
+                   [](uint8_t idx) { return Table::invS[idx]; });
 }
 
 Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
@@ -108,6 +118,70 @@ Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
             ApplyF(keys[2 * i], keys[2 * i + 1], coef_table[i - 1][j]);
     }
     return keys;
+}
+
+void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
+{
+    Block tmp = data1;
+    ApplyXSL(tmp, key);
+    ApplyX(tmp, data0);
+    std::tie(data1, data0) = std::make_pair(tmp, data1);
+}
+
+void Grasshopper::GenerateCoefTable()
+{
+    for (unsigned i = 0; i < num_rounds / 2 - 1; ++i)
+        for (unsigned j = 0; j < 8; ++j)
+        {
+            Block& C = coef_table[i][j];
+            C.fill(0);
+            C.back() = i * 8 + j + 1;
+            ApplyL(C);
+        }
+}
+
+void Grasshopper::GenerateEncTable()
+{
+    //initializing the martix
+    Matrix l_matrix;
+    for (size_t i = 0; i < block_size; ++i)
+        for (size_t j = 0; j < block_size; ++j)
+            if (i == 0)
+                l_matrix[i][j] = Table::lin[j];
+            else if (i == j + 1)
+                l_matrix[i][j] = 1;
+            else
+                l_matrix[i][j] = 0;
+    // power l_matrix to degree of 2^4
+    for (unsigned i = 0; i < 4; ++i)
+        l_matrix = SqrMatrix(l_matrix);
+
+    for (size_t i = 0; i < block_size; ++i)
+        for (size_t j = 0; j < 256; ++j)
+            for (size_t k = 0; k < block_size; ++k)
+                enc_ls_table[i][j][k] = PolyMul(Table::S[j], l_matrix[k][i]);
+}
+
+void Grasshopper::GenerateDecTable()
+{
+    //initializing the martix
+    Matrix l_matrix;
+    for (size_t i = 0; i < block_size; ++i)
+        for (size_t j = 0; j < block_size; ++j)
+            if (i == block_size - 1)
+                l_matrix[i][j] = Table::lin[(j + 15) % block_size];
+            else if (i + 1 == j)
+                l_matrix[i][j] = 1;
+            else
+                l_matrix[i][j] = 0;
+    // power l_matrix to degree of 2^4
+    for (unsigned i = 0; i < 4; ++i)
+        l_matrix = SqrMatrix(l_matrix);
+
+    for (size_t i = 0; i < block_size; ++i)
+        for (size_t j = 0; j < 256; ++j)
+            for (size_t k = 0; k < block_size; ++k)
+                dec_ls_table[i][j][k] = PolyMul(j, l_matrix[k][i]);
 }
 
 uint8_t Grasshopper::PolyMul (uint8_t left, uint8_t right)
@@ -124,162 +198,32 @@ uint8_t Grasshopper::PolyMul (uint8_t left, uint8_t right)
     return res;
 }
 
-
-void Grasshopper::GenerateMulTable()
+Grasshopper::Matrix Grasshopper::SqrMatrix(const Matrix& mat)
 {
-    for (unsigned i = 0; i < 256; ++i)
-        for (unsigned j = 0; j < 16; ++j)
-        {
-            mul_table[i][j] = PolyMul(i, Table::lin[j]);
-        }
+    Matrix res{};
+    for (size_t i = 0; i < block_size; ++i)
+        for (size_t j = 0; j < block_size; ++j)
+            for (size_t k = 0; k < block_size; ++k)
+                res[i][j] ^= PolyMul(mat[i][k], mat[k][j]);
+    return res;
 }
 
-void Grasshopper::GenerateCoefTable()
-{
-    for (unsigned i = 0; i < num_rounds / 2 - 1; ++i)
-        for (unsigned j = 0; j < 8; ++j)
-        {
-            Block& C = coef_table[i][j];
-            C.fill(0);
-            C.back() = i * 8 + j + 1;
-            ApplyL(C);
-        }
-}
-
-void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
-{
-    Block tmp = data1;
-    ApplyXSL(tmp, key);
-    ApplyX(tmp, data0);
-    std::tie(data1, data0) = std::make_pair(tmp, data1);
-}
-
-void Grasshopper::ApplyXSL(Block& data, const Block& key)
-{
-    ApplyX(data, key);
-    //ApplyS(data, Table::S);
-    //ApplyL(data);
-    ApplyLS (data);
-}
-
-void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
-{
-    ApplyX(data, key);
-    ApplyInvL(data);
-    ApplyS(data, Table::invS);
-}
-
-// Xor transform
 void Grasshopper::ApplyX(Block& data, const Block& key)
 {
-    std::transform(data.begin(), data.end(), key.begin(), data.begin(), std::bit_xor<uint8_t>());
+    __m128i& data_128 = *reinterpret_cast<__m128i*>(data.data());
+    const __m128i& key_128 = *reinterpret_cast<const __m128i*>(key.data());
+    data_128 = _mm_xor_si128(data_128, key_128);
 }
 
-// Nonlinear transform
-void Grasshopper::ApplyS(Block& data, const uint8_t *S)
-{
-    std::transform(data.begin(), data.end(), data.begin(), [S](uint8_t idx) {return S[idx];});
-}
-
-// Linear transform
 void Grasshopper::ApplyL(Block& data)
 {
     for (unsigned i = 0; i < block_size; ++i)
     {
         uint8_t tmp = 0;
         for (size_t j = 0; j < block_size; ++j)
-            tmp ^= mul_table[data[j]][j];
+            tmp ^= PolyMul(data[j], Table::lin[j]);
         std::copy_backward(data.begin(), data.end() - 1, data.end());
         data[0] = tmp;
-    }
-}
-
-void Grasshopper::ApplyInvL(Block& data)
-{
-    for (unsigned i = 0; i < block_size; ++i)
-    {
-        uint8_t elem = data[0];
-        std::copy(data.begin() + 1, data.end(), data.begin());
-        data[block_size - 1] = elem;
-
-        uint8_t tmp = 0;
-        for (size_t j = 0; j < block_size; ++j)
-            tmp ^= mul_table[data[j]][j];
-        data[15] = tmp;
-    }
-}
-
-void Grasshopper::GenerateLTable()
-{
-    uint8_t l_table[16][16] = {};
-    //initializing the martix
-    for (size_t i = 0; i < block_size; i++)
-    {
-        for (size_t j = 0; j < block_size; j++)
-        {
-            if (i - 1 == j)
-                l_table[i][j] = 1;
-            else if (i == 0)
-                l_table[i][j] = Table::lin[j];
-        }
-    }
-    
-    //powering the matrix
-    //NB! in this loop one gets a matrix to degree of 2^p
-    uint8_t tmp[16][16] = {};
-    for (size_t p = 0; p < 4; p++)
-    {
-        for (size_t i = 0; i < block_size; i++)
-            for (size_t j = 0; j < block_size; j++)
-                for (size_t k = 0; k < block_size; k++) 
-                    tmp[i][j] ^= PolyMul(l_table[i][k], l_table[k][j]);
-        memcpy (l_table, tmp, 256 * sizeof(uint8_t)); 
-        memset (tmp, 0, 256 * sizeof (uint8_t));
-    }
-
-    for (size_t i = 0; i < block_size; i++)
-        for (size_t j = 0; j < 256; j++)
-            for (size_t k = 0; k < block_size; k++)
-                ls_table[i][j][k] ^= PolyMul(Table::S[j], l_table[k][i]);
-
-
-     /*
-     //Incorrect brackets order!
-     FILE* mtrx;
-     mtrx = fopen ("matrix.hpp", "w");
-     fprintf (mtrx, "//LS autogenerated precomputed table created from grasshopper.cpp\n");
-     fprintf (mtrx, "uint8_t LStable[16][256][16] =\n{");
-     for (unsigned int i = 0; i < block_size; i++)
-     {
-         fprintf(mtrx, "\n\t//Row #%d\n\t{\n", i);
-         for (unsigned int j = 0; j < 256; j++)
-         {
-             fprintf(mtrx, "\t\t{");
-             for (unsigned int k = 0; k < block_size; k++)
-             {
-                 fprintf(mtrx, "0x%02x", ls_table[i][j][k]);
-                 if (k < block_size - 1)
-                     fprintf(mtrx, ", ");
-             }
-             fprintf(mtrx, "}, //byte 0x%02x\n", j);
-         }
-         fprintf(mtrx, "\t},");
-     }
-     fprintf(mtrx, "};\n");
-     fclose(mtrx);
-     */
-}
-
-//Implementing linear transform via matrices, merging with non-linear
-void Grasshopper::ApplyLS(Block& data)
-{
-    uint8_t tmp[16] = {};
-    for (size_t i = 0; i < block_size; i++)
-        for (size_t j = 0; j < block_size; j++)
-            tmp[j] ^= ls_table[i][data[i]][j];
-    for (size_t i = 0; i < block_size; i++)
-    {
-        data[i] = tmp[i]; 
     }
 }
 

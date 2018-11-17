@@ -13,6 +13,7 @@ public:
     static constexpr unsigned num_rounds = 10;
 
     using Block = std::array<uint8_t, block_size>;
+    using Matrix = std::array<Block, block_size>;
     using Key = std::array<uint8_t, block_size * 2>;
 
     Grasshopper();
@@ -22,29 +23,27 @@ public:
 private:
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
-    uint8_t mul_table[256][16];
-    uint8_t ls_table[16][256][16] = {};
     Block coef_table[num_rounds / 2 - 1][8];
+    Block enc_ls_table[block_size][256];
+    Block dec_ls_table[block_size][256];
 
     void EncryptBlock(Block& data, const KeyPair& key);
     void DecryptBlock(Block& data, const KeyPair& key);
 
-    Keys GenerateKeys(const KeyPair& key);
-    void GenerateMulTable();
-    void GenerateCoefTable();
-    void GenerateLTable();
-    uint8_t PolyMul(uint8_t left, uint8_t right);
-
-    void ApplyF(Block& data0, Block& data1, const Block& key);
     void ApplyXSL(Block& data, const Block& key);
-    void ApplyX(Block& data, const Block& key);
-    void ApplyS(Block& data, const uint8_t *S);
-    void ApplyL(Block& data);
-
     void ApplyInvXLS(Block& data, const Block& key);
-    void ApplyInvL(Block& data);
 
-    void ApplyLS(Block& data);
+    Keys GenerateKeys(const KeyPair& key);
+    void ApplyF(Block& data0, Block& data1, const Block& key);
+
+    void GenerateCoefTable();
+    void GenerateEncTable();
+    void GenerateDecTable();
+
+    uint8_t PolyMul(uint8_t left, uint8_t right);
+    Matrix SqrMatrix(const Matrix& mat);
+    void ApplyX(Block& data, const Block& key);
+    void ApplyL(Block& data);
 };
 
 void DumpBlock(const Grasshopper::Block& block);
