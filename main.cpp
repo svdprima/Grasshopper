@@ -52,7 +52,7 @@ int main()
     timer.Finish();
     printf("Time: %lu ms\n", timer.GetMilliseconds());
     // write data
-    if (!(f = fopen("output.txt", "w")))
+    if (!(f = fopen("ecnrypted.txt", "w")))
     {
         printf("Can not open output.txt\n");
         exit(EXIT_FAILURE);

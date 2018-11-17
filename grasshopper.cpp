@@ -11,7 +11,7 @@ Grasshopper::Grasshopper()
 {
     GenerateMulTable();
     GenerateCoefTable();
-    //GenerateLTable();
+    GenerateLTable();
 }
 
 void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
@@ -130,7 +130,7 @@ void Grasshopper::GenerateMulTable()
     for (unsigned i = 0; i < 256; ++i)
         for (unsigned j = 0; j < 16; ++j)
         {
-            mul_table[i][j] = PolyMul(i, lin[j]);
+            mul_table[i][j] = PolyMul(i, Table::lin[j]);
         }
 }
 
@@ -157,16 +157,16 @@ void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
 void Grasshopper::ApplyXSL(Block& data, const Block& key)
 {
     ApplyX(data, key);
-    ApplyS(data);
-    ApplyL(data);
-    //ApplyLS (data);
+    //ApplyS(data, Table::S);
+    //ApplyL(data);
+    ApplyLS (data);
 }
 
 void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
 {
     ApplyX(data, key);
     ApplyInvL(data);
-    ApplyInvS(data);
+    ApplyS(data, Table::invS);
 }
 
 // Xor transform
@@ -176,14 +176,9 @@ void Grasshopper::ApplyX(Block& data, const Block& key)
 }
 
 // Nonlinear transform
-void Grasshopper::ApplyS(Block& data)
+void Grasshopper::ApplyS(Block& data, const uint8_t *S)
 {
-    std::transform(data.begin(), data.end(), data.begin(), [](uint8_t idx) {return S[idx];});
-}
-
-void Grasshopper::ApplyInvS(Block& data)
-{
-    std::transform(data.begin(), data.end(), data.begin(), [](uint8_t idx) {return invS[idx];});
+    std::transform(data.begin(), data.end(), data.begin(), [S](uint8_t idx) {return S[idx];});
 }
 
 // Linear transform
@@ -225,7 +220,7 @@ void Grasshopper::GenerateLTable()
             if (i - 1 == j)
                 l_table[i][j] = 1;
             else if (i == 0)
-                l_table[i][j] = lin[j];
+                l_table[i][j] = Table::lin[j];
         }
     }
     
@@ -245,7 +240,7 @@ void Grasshopper::GenerateLTable()
     for (size_t i = 0; i < block_size; i++)
         for (size_t j = 0; j < 256; j++)
             for (size_t k = 0; k < block_size; k++)
-                ls_table[i][j][k] ^= PolyMul(S[j], l_table[k][i]); 
+                ls_table[i][j][k] ^= PolyMul(Table::S[j], l_table[k][i]);
 
 
      /*

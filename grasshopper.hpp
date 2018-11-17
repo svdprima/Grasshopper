@@ -38,11 +38,10 @@ private:
     void ApplyF(Block& data0, Block& data1, const Block& key);
     void ApplyXSL(Block& data, const Block& key);
     void ApplyX(Block& data, const Block& key);
-    void ApplyS(Block& data);
+    void ApplyS(Block& data, const uint8_t *S);
     void ApplyL(Block& data);
 
     void ApplyInvXLS(Block& data, const Block& key);
-    void ApplyInvS(Block& data);
     void ApplyInvL(Block& data);
 
     void ApplyLS(Block& data);
