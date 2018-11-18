@@ -2,6 +2,7 @@
 #include <iostream>
 #include "encryptor.hpp"
 
+using std::string;
 using std::fstream;
 using std::cerr;
 using std::cout;

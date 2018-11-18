@@ -12,7 +12,7 @@ Grasshopper::Grasshopper()
     GenerateDecTable();
 }
 
-void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
+void Grasshopper::Encrypt(Data& data, const Key& key)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
@@ -25,7 +25,7 @@ void Grasshopper::Encrypt(std::vector<Block>& data, const Key& key)
     }
 }
 
-void Grasshopper::Decrypt(std::vector<Block>& data, const Key& key)
+void Grasshopper::Decrypt(Data& data, const Key& key)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
