@@ -59,8 +59,8 @@ public:
 
     Grasshopper();
 
-    void Encrypt(Data& data, const Key& key);
-    void Decrypt(Data& data, const Key& key);
+    void Encrypt(Data& data, const Key& key, unsigned mode);
+    void Decrypt(Data& data, const Key& key, unsigned mode);
 private:
     using Matrix = std::array<Block, block_size>;
     using Keys = std::array<Block, num_rounds>;
@@ -69,8 +69,8 @@ private:
     Block enc_ls_table[block_size][256];
     Block dec_ls_table[block_size][256];
 
-    void EncryptBlock(Block& data, const KeyPair& key);
-    void DecryptBlock(Block& data, const KeyPair& key);
+    void EncryptBlock(Block& data, const Keys& key);
+    void DecryptBlock(Block& data, const Keys& key);
 
     void ApplyXSL(Block& data, const Block& key);
     void ApplyInvXLS(Block& data, const Block& key);

@@ -4,20 +4,23 @@
 #include <string>
 #include <vector>
 #include "grasshopper.hpp"
+#include "tables.hpp"
 
 union UintConverter{
     uint64_t u64;
     uint8_t u8[8];
 };
 
+
 class Encryptor {
 public:
-    Encryptor() : text_size({0}), constant_size(sizeof(uint64_t)) {}
-    void Encrypt() {
-      EncryptorImpl.Encrypt(text, InitialKey);
+    Encryptor() : text_size({0}), constant_size(sizeof(uint64_t)), mode(ECB) {}
+    Encryptor(unsigned md) : text_size({0}), constant_size(sizeof(uint64_t)){mode = md;}
+    void Encrypt(unsigned mode) {
+      EncryptorImpl.Encrypt(text, InitialKey, mode);
     }
-    void Decrypt() {
-      EncryptorImpl.Decrypt(text, InitialKey);
+    void Decrypt(unsigned mode) {
+      EncryptorImpl.Decrypt(text, InitialKey, mode);
     }
     void ReadText(const std::string& filename, bool as_encrypted = false);
     void SaveText(const std::string& filename, bool as_decrypted = false);
@@ -31,6 +34,7 @@ private:
     Grasshopper::Data text;
     UintConverter text_size;
     uint8_t constant_size;
+    unsigned mode;
 
     Grasshopper::Key InitialKey {{0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
                                   0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,

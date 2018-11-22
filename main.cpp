@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <string>
 #include "encryptor.hpp"
 
 class Timer
@@ -22,9 +23,24 @@ private:
     std::chrono::high_resolution_clock::time_point t1, t2;
 };
 
-int main()
+unsigned ArgParser (int argc, char** argvec)
 {
-    Encryptor E;
+    std::string tmp;
+    for (int i = 1; i < argc; i++)
+    {
+        tmp = std::string(argvec[i]);
+        if (tmp == "-ECB\0")
+            return 0;
+        if (tmp == "-CBC\0")
+            return 1;
+    } 
+    return 0;
+}
+
+int main(int argc, char** argv)
+{
+    unsigned mode = ArgParser (argc, argv);
+    Encryptor E (mode);
 
     // encryption
     E.ReadText("input.txt");
@@ -33,7 +49,7 @@ int main()
     // encrypt
     timer.Start();
 
-    E.Encrypt();
+    E.Encrypt(mode);
 
     timer.Finish();
     std::cout << "Encrypt time: " << timer.GetMilliseconds() << " ms\n";
@@ -45,7 +61,7 @@ int main()
 
     timer.Start();
 
-    E.Decrypt();
+    E.Decrypt(mode);
 
     timer.Finish();
     std::cout << "Decrypt time: " << timer.GetMilliseconds() << " ms\n";

@@ -1,9 +1,9 @@
 CC = clang++
 CFLAGS = -std=c++17 -Wall -Wextra -msse
 # DEBUG mode
-CFLAGS += -g
+#CFLAGS += -g
 # RELEASE mode
-#CFLAGS += -O3 -DNDEBUG
+CFLAGS += -O3 -DNDEBUG
 LDFLAGS =
 
 APP_NAME = grasshopper

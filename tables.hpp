@@ -1,6 +1,12 @@
 #ifndef TABLES_H
 #define TABLES_H
 
+enum 
+{
+    ECB = 0,
+    CBC = 1
+};
+
 namespace Table {
 
 constexpr uint8_t S[0x100] =

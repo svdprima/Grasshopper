@@ -12,39 +12,53 @@ Grasshopper::Grasshopper()
     GenerateDecTable();
 }
 
-void Grasshopper::Encrypt(Data& data, const Key& key)
+void Grasshopper::Encrypt(Data& data, const Key& key, unsigned mode)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
+    Keys keys;
+    if (mode == ECB)
+        keys = GenerateKeys(current_key);
     for (auto& block: data)
     {
-        EncryptBlock(block, current_key);
-        ApplyX(current_key.first , block);
-        ApplyX(current_key.second, block);
+        if (mode == CBC)
+            keys = GenerateKeys(current_key);
+        EncryptBlock(block, keys);
+        if (mode == CBC)
+        {
+            ApplyX(current_key.first , block);
+            ApplyX(current_key.second, block);
+        }
     }
 }
 
-void Grasshopper::Decrypt(Data& data, const Key& key)
+void Grasshopper::Decrypt(Data& data, const Key& key, unsigned mode)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
     KeyPair tmp_key(current_key);
-
+    Keys keys;
+    if (mode == ECB)
+        keys = GenerateKeys(current_key);
     for (auto& block: data)
     {
-        ApplyX(tmp_key.first , block);
-        ApplyX(tmp_key.second, block);
-        DecryptBlock(block, current_key);
-        current_key = tmp_key;
+        if (mode == CBC)
+        {
+            ApplyX(tmp_key.first , block);
+            ApplyX(tmp_key.second, block);
+            keys = GenerateKeys(current_key);
+        }
+        DecryptBlock(block, keys);
+        if (mode == CBC)
+            current_key = tmp_key;
     }
 }
 
-void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
+void Grasshopper::EncryptBlock(Block& data, const Keys& keys)
 {
-    const Keys& keys = GenerateKeys(key);
 
 #ifdef VERBOSE
     printf("keys:\n");
@@ -64,9 +78,8 @@ void Grasshopper::EncryptBlock(Block& data, const KeyPair& key)
 #endif
 }
 
-void Grasshopper::DecryptBlock(Block& data, const KeyPair& key)
+void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
 {
-    const Keys& keys = GenerateKeys(key);
 
 #ifdef VERBOSE
     printf("keys:\n");
