@@ -1,5 +1,5 @@
 CC = clang++
-CFLAGS = -std=c++17 -Wall -Wextra -msse
+CFLAGS = -std=c++17 -Wall -Wextra -msse -mavx2
 # DEBUG mode
 #CFLAGS += -g
 # RELEASE mode

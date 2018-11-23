@@ -23,33 +23,31 @@ private:
     std::chrono::high_resolution_clock::time_point t1, t2;
 };
 
-unsigned ArgParser (int argc, char** argvec)
-{
-    std::string tmp;
-    for (int i = 1; i < argc; i++)
-    {
-        tmp = std::string(argvec[i]);
-        if (tmp == "-ECB\0")
-            return 0;
-        if (tmp == "-CBC\0")
-            return 1;
-    } 
-    return 0;
-}
-
 int main(int argc, char** argv)
 {
-    unsigned mode = ArgParser (argc, argv);
-    Encryptor E (mode);
+    Mode mode = Mode::ECB;
+    std::string file("input.txt");
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string tmp(argv[i]);
+        if (tmp == "-ECB")
+            mode = Mode::ECB;
+        else if (tmp == "-CBC")
+            mode = Mode::CBC;
+        else
+            file = tmp;
+    }
+
+    Encryptor E(mode);
 
     // encryption
-    E.ReadText("input.txt");
+    E.ReadText(file);
 
     Timer timer;
     // encrypt
     timer.Start();
 
-    E.Encrypt(mode);
+    E.Encrypt();
 
     timer.Finish();
     std::cout << "Encrypt time: " << timer.GetMilliseconds() << " ms\n";
@@ -61,7 +59,7 @@ int main(int argc, char** argv)
 
     timer.Start();
 
-    E.Decrypt(mode);
+    E.Decrypt();
 
     timer.Finish();
     std::cout << "Decrypt time: " << timer.GetMilliseconds() << " ms\n";

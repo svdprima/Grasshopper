@@ -2,8 +2,19 @@
 #include <functional>
 #include <cstdio>
 #include <xmmintrin.h>
+#include <immintrin.h>
 #include "grasshopper.hpp"
 #include "tables.hpp"
+
+const __m128i& CastBlock(const Grasshopper::Block& block)
+{
+    return *reinterpret_cast<const __m128i*>(&block);
+}
+
+__m128i& CastBlock(Grasshopper::Block& block)
+{
+    return *reinterpret_cast<__m128i*>(&block);
+}
 
 Grasshopper::Grasshopper()
 {
@@ -12,48 +23,53 @@ Grasshopper::Grasshopper()
     GenerateDecTable();
 }
 
-void Grasshopper::Encrypt(Data& data, const Key& key, unsigned mode)
+void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
-    Keys keys;
-    if (mode == ECB)
-        keys = GenerateKeys(current_key);
-    for (auto& block: data)
+
+    if (mode == Mode::ECB)
     {
-        if (mode == CBC)
-            keys = GenerateKeys(current_key);
-        EncryptBlock(block, keys);
-        if (mode == CBC)
+        const Keys& keys = GenerateKeys(current_key);
+        for (auto& block: data)
+            EncryptBlock(block, keys);
+    }
+    else
+    {
+        for (auto& block: data)
         {
+            const Keys& keys = GenerateKeys(current_key);
+            EncryptBlock(block, keys);
             ApplyX(current_key.first , block);
             ApplyX(current_key.second, block);
         }
     }
 }
 
-void Grasshopper::Decrypt(Data& data, const Key& key, unsigned mode)
+void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
 {
     KeyPair current_key;
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
     KeyPair tmp_key(current_key);
-    Keys keys;
-    if (mode == ECB)
-        keys = GenerateKeys(current_key);
-    for (auto& block: data)
+    if (mode == Mode::ECB)
     {
-        if (mode == CBC)
+        const Keys& keys = GenerateKeys(current_key);
+        for (auto& block: data)
+            DecryptBlock(block, keys);
+    }
+    else
+    {
+        for (auto& block: data)
         {
             ApplyX(tmp_key.first , block);
             ApplyX(tmp_key.second, block);
-            keys = GenerateKeys(current_key);
-        }
-        DecryptBlock(block, keys);
-        if (mode == CBC)
+            const Keys& keys = GenerateKeys(current_key);
+            DecryptBlock(block, keys);
             current_key = tmp_key;
+        }
     }
 }
 
@@ -102,20 +118,32 @@ void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
 void Grasshopper::ApplyXSL(Block& data, const Block& key)
 {
     ApplyX(data, key);
-    Block tmp{};
-#pragma unroll(16)
-    for (size_t i = 0; i < block_size; i++)
-        ApplyX(tmp, enc_ls_table[i][data[i]]);
-    data = tmp;
+    __m256i vec1 = _mm256_setzero_si256();
+#pragma clang loop unroll(full)
+    for (size_t i = 0; i < block_size; i += 2)
+    {
+        __m256i vec2 = _mm256_castps128_ps256(CastBlock(enc_ls_table[i][data[i]]));
+        vec2 = _mm256_insertf128_ps(vec2, CastBlock(enc_ls_table[i + 1][data[i + 1]]), 1);
+        vec1 = _mm256_xor_si256(vec1, vec2);
+    }
+    CastBlock(data) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
+                                    _mm256_extracti128_si256(vec1, 1));
 }
 
 void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
 {
     ApplyX(data, key);
     Block tmp{};
-#pragma unroll(16)
-    for (size_t i = 0; i < block_size; i++)
-        ApplyX(tmp, dec_ls_table[i][data[i]]);
+    __m256i vec1 = _mm256_setzero_si256();
+#pragma clang loop unroll(full)
+    for (size_t i = 0; i < block_size; i += 2)
+    {
+        __m256i vec2 = _mm256_castps128_ps256(CastBlock(dec_ls_table[i][data[i]]));
+        vec2 = _mm256_insertf128_ps(vec2, CastBlock(dec_ls_table[i + 1][data[i + 1]]), 1);
+        vec1 = _mm256_xor_si256(vec1, vec2);
+    }
+    CastBlock(tmp) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
+                                   _mm256_extracti128_si256(vec1, 1));
     std::transform(tmp.begin(), tmp.end(), data.begin(),
                    [](uint8_t idx) { return Table::invS[idx]; });
 }
@@ -223,8 +251,8 @@ Grasshopper::Matrix Grasshopper::SqrMatrix(const Matrix& mat)
 
 void Grasshopper::ApplyX(Block& data, const Block& key)
 {
-    __m128i& data_128 = *reinterpret_cast<__m128i*>(data.data());
-    const __m128i& key_128 = *reinterpret_cast<const __m128i*>(key.data());
+    __m128i& data_128 = CastBlock(data);
+    const __m128i& key_128 = CastBlock(key);
     data_128 = _mm_xor_si128(data_128, key_128);
 }
 

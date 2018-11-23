@@ -47,6 +47,12 @@ private:
         (static_cast<std::size_t>(0) - static_cast<std::size_t>(1)) / sizeof(T);
 };
 
+enum class Mode
+{
+    ECB,
+    CBC
+};
+
 class Grasshopper
 {
 public:
@@ -59,8 +65,8 @@ public:
 
     Grasshopper();
 
-    void Encrypt(Data& data, const Key& key, unsigned mode);
-    void Decrypt(Data& data, const Key& key, unsigned mode);
+    void Encrypt(Data& data, const Key& key, Mode mode);
+    void Decrypt(Data& data, const Key& key, Mode mode);
 private:
     using Matrix = std::array<Block, block_size>;
     using Keys = std::array<Block, num_rounds>;
