@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 
     timer.Finish();
     std::cout << "Encrypt time: " << timer.GetMilliseconds() << " ms\n";
-    std::cout << "Speed: " << num_blocks * 1000.0  / (timer.GetMilliseconds() * 8192) << std::endl;
+    std::cout << "Speed: " << num_blocks * 1000.0  / (timer.GetMilliseconds() * 65536) << "MB/s\n";
 
     E.SaveText("encrypted.txt");
 
@@ -64,7 +64,7 @@ int main(int argc, char** argv)
 
     timer.Finish();
     std::cout << "Decrypt time: " << timer.GetMilliseconds() << " ms\n";
-    std::cout << "Speed: " << num_blocks * 1000.0  / (timer.GetMilliseconds() * 8192) << std::endl;
+    std::cout << "Speed: " << num_blocks * 1000.0  / (timer.GetMilliseconds() * 65536) << "MB/s\n";
 
     E.SaveText("decrypted.txt", true);
 
