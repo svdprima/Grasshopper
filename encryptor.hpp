@@ -20,7 +20,7 @@ public:
     void Decrypt() {
       EncryptorImpl.Decrypt(text, InitialKey, mode);
     }
-    void ReadText(const std::string& filename, bool as_encrypted = false);
+    uint64_t ReadText(const std::string& filename, bool as_encrypted = false);
     void SaveText(const std::string& filename, bool as_decrypted = false);
     void Clear() {
       text.clear();

@@ -7,7 +7,7 @@ using std::fstream;
 using std::cerr;
 using std::cout;
 
-void Encryptor::ReadText(const string& filename, bool as_encrypted) {
+uint64_t Encryptor::ReadText(const string& filename, bool as_encrypted) {
     Clear();
     fstream f(filename, std::ios_base::in);
     if (!f.is_open()) {
@@ -36,6 +36,7 @@ void Encryptor::ReadText(const string& filename, bool as_encrypted) {
         exit(EXIT_FAILURE);
     }
     f.close();
+    return num_blocks;
 }
 
 void Encryptor::SaveText(const string& filename, bool as_decrypted) {
