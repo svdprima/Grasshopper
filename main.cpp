@@ -34,6 +34,10 @@ int main(int argc, char** argv)
             mode = Mode::ECB;
         else if (tmp == "-CBC")
             mode = Mode::CBC;
+        else if (tmp == "-CFB")
+            mode = Mode::CFB;
+        else if (tmp == "-OFB")
+            mode = Mode::OFB;
         else
             file = tmp;
     }

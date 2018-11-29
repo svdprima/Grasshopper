@@ -50,7 +50,9 @@ private:
 enum class Mode
 {
     ECB,
-    CBC
+    CBC,
+    CFB,
+    OFB
 };
 
 class Grasshopper

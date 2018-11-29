@@ -39,20 +39,38 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
+    const Keys& keys = GenerateKeys(current_key);
+    Block feedback = current_key.first;
+
     if (mode == Mode::ECB)
     {
-        const Keys& keys = GenerateKeys(current_key);
         for (auto& block: data)
             EncryptBlock(block, keys);
     }
-    else
+    else if (mode == Mode::CBC)
     {
         for (auto& block: data)
         {
-            const Keys& keys = GenerateKeys(current_key);
+            ApplyX(feedback, block);
             EncryptBlock(block, keys);
-            ApplyX(current_key.first , block);
-            ApplyX(current_key.second, block);
+            feedback = block;
+        }
+    }
+    else if (mode == Mode::CFB)
+    {
+        for (auto& block: data)
+        {
+            EncryptBlock(feedback, keys);
+            ApplyX(block, feedback);
+            feedback = block;
+        }
+    }
+    else if (mode == Mode::OFB)
+    {
+        for (auto& block: data)
+        {
+            EncryptBlock(feedback, keys);
+            ApplyX(block, feedback);
         }
     }
 }
@@ -63,22 +81,40 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
-    KeyPair tmp_key(current_key);
+    const Keys& keys = GenerateKeys(current_key);
+    Block feedback = current_key.first;
+
     if (mode == Mode::ECB)
     {
-        const Keys& keys = GenerateKeys(current_key);
         for (auto& block: data)
             DecryptBlock(block, keys);
     }
-    else
+    else if (mode == Mode::CBC)
     {
         for (auto& block: data)
         {
-            ApplyX(tmp_key.first , block);
-            ApplyX(tmp_key.second, block);
-            const Keys& keys = GenerateKeys(current_key);
+            Block cblock = block;
             DecryptBlock(block, keys);
-            current_key = tmp_key;
+            ApplyX(feedback, block);
+            feedback = cblock;
+        }
+    }
+    else if (mode == Mode::CFB)
+    {
+        for (auto& block: data)
+        {
+            Block cblock = block;
+            EncryptBlock(feedback, keys);
+            ApplyX(block, feedback);
+            feedback = cblock;
+        }
+    }
+    else if (mode == Mode::OFB)
+    {
+        for (auto& block: data)
+        {
+            EncryptBlock(feedback, keys);
+            ApplyX(block, feedback);
         }
     }
 }
