@@ -83,8 +83,9 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
     Keys keys = GenerateKeys(current_key);
-    for (unsigned i = 1; i < num_rounds; ++i)
-        ApplyInvL(keys[i]);
+    if (mode == Mode::ECB || mode == Mode::CBC)
+        for (unsigned i = 1; i < num_rounds; ++i)
+            ApplyInvL(keys[i]);
 
     Block feedback = current_key.first;
 
