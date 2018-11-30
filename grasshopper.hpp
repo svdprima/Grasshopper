@@ -6,6 +6,7 @@
 #include <utility>
 #include <cstdlib>
 #include <cstdint>
+#include <immintrin.h>
 
 template<typename T>
 class AlignedAllocator
@@ -79,10 +80,15 @@ private:
     Block dec_ls_table[block_size][256];
 
     void EncryptBlock(Block& data, const Keys& key);
+    void EncryptBlock(__m256i& blocks2, const Keys& keys);
     void DecryptBlock(Block& data, const Keys& key);
+    void DecryptBlock(__m256i& d_block, const Keys& keys);
 
     void ApplyXSL(Block& data, const Block& key);
+    void ApplyXSL(__m256i& big_data, const Block& key);
     void ApplyInvXLS(Block& data, const Block& key);
+    void ApplyInvXLS(__m256i& big_data, const Block& key);
+
 
     Keys GenerateKeys(const KeyPair& key);
     void ApplyF(Block& data0, Block& data1, const Block& key);
@@ -95,6 +101,7 @@ private:
     uint8_t PolyMul(uint8_t left, uint8_t right);
     Matrix SqrMatrix(const Matrix& mat);
     void ApplyX(Block& data, const Block& key);
+    void ApplyX(__m256i& big_data, const Block& key);
     void ApplyL(Block& data);
     void ApplyInvL(Block& data);
 };

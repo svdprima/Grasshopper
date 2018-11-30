@@ -8,10 +8,20 @@
 #include "tables.hpp"
 #include "assert.h"
 
-void print128_num(__m128i var)
+void print_num(__m128i var)
 {
     uint8_t *val = (uint8_t*) &var;
-    printf("%i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i\n", 
+    printf("%02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x\n", 
+           val[15], val[14], val[13], val[12], val[11], val[10], val[9], val[8], 
+           val[7],  val[6],  val[5],  val[4],  val[3],  val[2], val[1], val[0]);
+}
+
+void print_num(__m256 var)
+{
+    uint8_t *val = (uint8_t*) &var;
+    printf("%02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x\n%02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x %02.x\n", 
+           val[31], val[30], val[29], val[28], val[27], val[26], val[25], val[24], 
+           val[23], val[22], val[21], val[20], val[19], val[18], val[17], val[16], 
            val[15], val[14], val[13], val[12], val[11], val[10], val[9], val[8], 
            val[7],  val[6],  val[5],  val[4],  val[3],  val[2], val[1], val[0]);
 }
@@ -24,6 +34,16 @@ const __m128i& CastBlock(const Grasshopper::Block& block)
 __m128i& CastBlock(Grasshopper::Block& block)
 {
     return *reinterpret_cast<__m128i*>(&block);
+}
+
+__m128i& CastBlock(char* block)
+{
+    return *reinterpret_cast<__m128i*>(block);
+}
+
+__m128i& CastBlock(uint8_t* block)
+{
+    return *reinterpret_cast<__m128i*>(block);
 }
 
 Grasshopper::Grasshopper()
@@ -45,8 +65,19 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
 
     if (mode == Mode::ECB)
     {
-        for (auto& block: data)
-            EncryptBlock(block, keys);
+        __m256i d_block = _mm256_setzero_si256();
+        for (size_t i = 0; i < data.size(); i += 2)
+        {
+            d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i]), 0);
+            d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i + 1]), 1);
+            EncryptBlock(d_block, keys);
+            __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
+            __m128i tmp2 = _mm256_extracti128_si256 (d_block, 1);
+            data[i]     = *reinterpret_cast <Block*> (&tmp1);
+            data[i + 1] = *reinterpret_cast <Block*> (&tmp2);
+        }
+        if (data.size() % 2)
+            EncryptBlock(data[data.size() - 1], keys);
     }
     else if (mode == Mode::CBC)
     {
@@ -93,6 +124,21 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     {
         for (auto& block: data)
             DecryptBlock(block, keys);
+        /*
+        __m256i d_block = _mm256_setzero_si256();
+        for (size_t i = 0; i < data.size(); i += 2)
+        {
+            d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i]), 0);
+            d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i + 1]), 1);
+            DecryptBlock(d_block, keys);
+            __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
+            __m128i tmp2 = _mm256_extracti128_si256 (d_block, 1);
+            data[i]     = *reinterpret_cast <Block*> (&tmp1);
+            data[i + 1] = *reinterpret_cast <Block*> (&tmp2);
+        }
+        if (data.size() % 2)
+            EncryptBlock(data[data.size() - 1], keys);
+        */
     }
     else if (mode == Mode::CBC)
     {
@@ -145,6 +191,15 @@ void Grasshopper::EncryptBlock(Block& data, const Keys& keys)
 #endif
 }
 
+void Grasshopper::EncryptBlock(__m256i& d_block, const Keys& keys)
+{
+    for (unsigned i = 0; i < num_rounds - 1; ++i)
+    {
+        ApplyXSL(d_block, keys[i]);
+    }
+    ApplyX(d_block, keys[num_rounds - 1]);
+}
+
 void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
 {
 
@@ -180,41 +235,116 @@ void Grasshopper::ApplyXSL(Block& data, const Block& key)
     tmp2 = _mm_slli_epi64 (tmp2, 4);
 
     uint8_t* table = (uint8_t*)&(enc_ls_table[0][0]);
-    __m256i vec1 = _mm256_setzero_si256();
-    __m256i vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 0) + 0x1000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    __m128i vec1 = _mm_load_si128(reinterpret_cast<const __m128i*>(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
+    __m128i vec2 = _mm_load_si128(reinterpret_cast<const __m128i*>(table + _mm_extract_epi16(tmp1, 0) + 0x1000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 1) + 0x2000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 1) + 0x3000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 1) + 0x2000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 1) + 0x3000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 2) + 0x4000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 2) + 0x5000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 2) + 0x4000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 2) + 0x5000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 3) + 0x6000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 3) + 0x7000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 3) + 0x6000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 3) + 0x7000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 4) + 0x8000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 4) + 0x9000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 4) + 0x8000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 4) + 0x9000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 5) + 0xB000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 5) + 0xB000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 6) + 0xD000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 6) + 0xD000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 7) + 0xE000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 7) + 0xF000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 7) + 0xE000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 7) + 0xF000));
+    CastBlock(data) = _mm_xor_si128 (vec1, vec2);
+}
 
-    CastBlock(data) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
-                                    _mm256_extracti128_si256(vec1, 1));
+void Grasshopper::ApplyXSL(__m256i& big_data, const Block& d_key)
+{
+    ApplyX(big_data, d_key);
+    __m256i tmp1 = _mm256_and_si256 (*reinterpret_cast<const __m256i*>(Table::d_mask), big_data);
+    __m256i tmp2 = _mm256_andnot_si256 (*reinterpret_cast<const __m256i*>(Table::d_mask), big_data);
+
+    tmp1 = _mm256_srli_epi64(tmp1, 4);
+    tmp2 = _mm256_slli_epi64(tmp2, 4);
+
+    __m256i vec1 = _mm256_setzero_si256 ();
+    __m256i vec2 = _mm256_setzero_si256 ();
+    __m256i vec3 = _mm256_setzero_si256 ();
+    big_data = _mm256_setzero_si256 ();
+    char* table = (char*)&enc_ls_table[0][0];
+
+    big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 0) + 0x0000), 0);
+    big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 8) + 0x0000), 1);
+
+    vec2     = _mm256_inserti128_si256 (    vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 1) + 0x2000), 0);
+    vec2     = _mm256_inserti128_si256 (    vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 9) + 0x2000), 1);
+
+    vec1     = _mm256_inserti128_si256 (    vec1, CastBlock(table + _mm256_extract_epi16(tmp1, 0) + 0x1000), 0);
+    vec1     = _mm256_inserti128_si256 (    vec1, CastBlock(table + _mm256_extract_epi16(tmp1, 8) + 0x1000), 1);
+    
+    vec3     = _mm256_inserti128_si256 (    vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 1) + 0x3000), 0);
+    vec3     = _mm256_inserti128_si256 (    vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 9) + 0x3000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 2) + 0x4000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,10) + 0x4000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 2) + 0x5000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 10) + 0x5000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 3) + 0x6000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,11) + 0x6000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 3) + 0x7000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 11) + 0x7000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 4) + 0x8000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,12) + 0x8000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 4) + 0x9000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 12) + 0x9000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 5) + 0xA000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,13) + 0xA000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 5) + 0xB000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 13) + 0xB000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 6) + 0xC000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,14) + 0xC000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 6) + 0xD000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 14) + 0xD000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 7) + 0xE000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,15) + 0xE000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 7) + 0xF000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 15) + 0xF000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+    big_data = _mm256_xor_si256(big_data, vec1);
 }
 
 void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
@@ -225,43 +355,117 @@ void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
     tmp2 = _mm_slli_epi64 (tmp2, 4);
 
     uint8_t* table = (uint8_t*)&(dec_ls_table[0][0]);
-    __m256i vec1 = _mm256_setzero_si256();
-    __m256i vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 0) + 0x1000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    __m128i vec1 = _mm_load_si128(reinterpret_cast<const __m128i*>(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
+    __m128i vec2 = _mm_load_si128(reinterpret_cast<const __m128i*>(table + _mm_extract_epi16(tmp1, 0) + 0x1000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 1) + 0x2000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 1) + 0x3000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 1) + 0x2000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 1) + 0x3000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 2) + 0x4000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 2) + 0x5000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 2) + 0x4000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 2) + 0x5000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 3) + 0x6000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 3) + 0x7000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 3) + 0x6000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 3) + 0x7000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 4) + 0x8000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 4) + 0x9000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 4) + 0x8000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 4) + 0x9000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 5) + 0xB000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 5) + 0xB000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 6) + 0xD000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 6) + 0xD000));
 
-    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 7) + 0xE000));
-    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 7) + 0xF000), 1);
-    vec1 = _mm256_xor_si256(vec1, vec2);
-
-    CastBlock(data) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
-                                    _mm256_extracti128_si256(vec1, 1));
-
+    vec1 = _mm_xor_si128(vec1, CastBlock(table + _mm_extract_epi16(tmp2, 7) + 0xE000));
+    vec2 = _mm_xor_si128(vec2, CastBlock(table + _mm_extract_epi16(tmp1, 7) + 0xF000));
+    CastBlock(data) = _mm_xor_si128 (vec1, vec2);
     ApplyX(data, key);
+}
+
+void Grasshopper::ApplyInvXLS(__m256i& big_data, const Block& d_key)
+{
+    __m256i tmp1 = _mm256_and_si256 (*reinterpret_cast<const __m256i*>(Table::d_mask), big_data);
+    __m256i tmp2 = _mm256_andnot_si256 (*reinterpret_cast<const __m256i*>(Table::d_mask), big_data);
+
+    tmp1 = _mm256_srli_epi64(tmp1, 4);
+    tmp2 = _mm256_slli_epi64(tmp2, 4);
+
+    __m256i vec1 = _mm256_setzero_si256 ();
+    __m256i vec2 = _mm256_setzero_si256 ();
+    __m256i vec3 = _mm256_setzero_si256 ();
+    big_data = _mm256_setzero_si256 ();
+    char* table = (char*)&enc_ls_table[0][0];
+
+    big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 0) + 0x0000), 0);
+    big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 8) + 0x0000), 1);
+
+    vec2     = _mm256_inserti128_si256 (    vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 1) + 0x2000), 0);
+    vec2     = _mm256_inserti128_si256 (    vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 9) + 0x2000), 1);
+
+    vec1     = _mm256_inserti128_si256 (    vec1, CastBlock(table + _mm256_extract_epi16(tmp1, 0) + 0x1000), 0);
+    vec1     = _mm256_inserti128_si256 (    vec1, CastBlock(table + _mm256_extract_epi16(tmp1, 8) + 0x1000), 1);
+    
+    vec3     = _mm256_inserti128_si256 (    vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 1) + 0x3000), 0);
+    vec3     = _mm256_inserti128_si256 (    vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 9) + 0x3000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 2) + 0x4000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,10) + 0x4000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 2) + 0x5000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 10) + 0x5000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 3) + 0x6000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,11) + 0x6000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 3) + 0x7000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 11) + 0x7000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 4) + 0x8000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,12) + 0x8000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 4) + 0x9000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 12) + 0x9000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 5) + 0xA000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,13) + 0xA000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 5) + 0xB000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 13) + 0xB000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 6) + 0xC000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,14) + 0xC000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 6) + 0xD000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 14) + 0xD000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2, 7) + 0xE000), 0);
+    vec2    = _mm256_inserti128_si256 (     vec2, CastBlock(table + _mm256_extract_epi16(tmp2,15) + 0xE000), 1);
+
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 7) + 0xF000), 0);
+    vec3    = _mm256_inserti128_si256 (     vec3, CastBlock(table + _mm256_extract_epi16(tmp1, 15) + 0xF000), 1);
+
+    big_data = _mm256_xor_si256(big_data, vec2);
+    vec1     = _mm256_xor_si256(    vec1, vec3);
+    big_data = _mm256_xor_si256(big_data, vec1);
+    ApplyX(big_data, d_key);
 }
 
 Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
@@ -377,6 +581,13 @@ void Grasshopper::ApplyX(Block& data, const Block& key)
     __m128i& data_128 = CastBlock(data);
     const __m128i& key_128 = CastBlock(key);
     data_128 = _mm_xor_si128(data_128, key_128);
+}
+
+void Grasshopper::ApplyX(__m256i& big_data, const Block& key)
+{
+    __m256i d_key = _mm256_castsi128_si256 (CastBlock(key));
+    d_key = _mm256_inserti128_si256 (d_key, CastBlock(key), 1);
+    big_data = _mm256_xor_si256(big_data, d_key);
 }
 
 void Grasshopper::ApplyL(Block& data)
