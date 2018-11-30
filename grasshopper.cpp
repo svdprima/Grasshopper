@@ -28,6 +28,7 @@ __m128i& CastBlock(Grasshopper::Block& block)
 
 Grasshopper::Grasshopper()
 {
+    GenerateMulTable();
     GenerateCoefTable();
     GenerateEncTable();
     GenerateDecTable();
@@ -39,7 +40,7 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
-    const Keys& keys = GenerateKeys(current_key);
+    Keys keys = GenerateKeys(current_key);
     Block feedback = current_key.first;
 
     if (mode == Mode::ECB)
@@ -81,7 +82,10 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     std::copy(key.begin(), key.begin() + block_size, current_key.first.begin());
     std::copy(key.begin() + block_size, key.end(), current_key.second.begin());
 
-    const Keys& keys = GenerateKeys(current_key);
+    Keys keys = GenerateKeys(current_key);
+    for (unsigned i = 1; i < num_rounds; ++i)
+        ApplyInvL(keys[i]);
+
     Block feedback = current_key.first;
 
     if (mode == Mode::ECB)
@@ -151,8 +155,12 @@ void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
     DumpBlock(data);
 #endif
 
-    for (unsigned i = 0; i < num_rounds - 1; ++i)
-        ApplyInvXLS(data, keys[num_rounds - 1 - i]);
+    std::transform(data.begin(), data.end(), data.begin(),
+                   [](uint8_t idx) { return Table::S[idx]; });
+    for (unsigned i = num_rounds - 1; i > 0; --i)
+        ApplyInvXLS(data, keys[i]);
+    std::transform(data.begin(), data.end(), data.begin(),
+                   [](uint8_t idx) { return Table::invS[idx]; });
     ApplyX(data, keys[0]);
 
 #ifdef VERBOSE
@@ -164,23 +172,14 @@ void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
 void Grasshopper::ApplyXSL(Block& data, const Block& key)
 {
     ApplyX(data, key);
-    __m256i vec1 = _mm256_setzero_si256();
     
     __m128i tmp1 = _mm_and_si128 (CastBlock(Table::mask), CastBlock(data));
     __m128i tmp2 = _mm_andnot_si128 (CastBlock(Table::mask), CastBlock(data));
-    
     tmp1 = _mm_srli_epi64 (tmp1, 4);
     tmp2 = _mm_slli_epi64 (tmp2, 4);
-    /*
-#pragma clang loop unroll(full)
-    for (size_t i = 0; i < block_size; i += 2)
-    {
-        __m256i vec2 = _mm256_castps128_ps256(CastBlock(enc_ls_table[i][data[i]]));
-        vec2 = _mm256_insertf128_ps(vec2, CastBlock(enc_ls_table[i + 1][data[i + 1]]), 1);
-        vec1 = _mm256_xor_si256(vec1, vec2);
-    }
-    */
-    char* table = (char*)&(enc_ls_table[0][0]);
+
+    uint8_t* table = (uint8_t*)&(enc_ls_table[0][0]);
+    __m256i vec1 = _mm256_setzero_si256();
     __m256i vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
     vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 0) + 0x1000), 1);
     vec1 = _mm256_xor_si256(vec1, vec2);
@@ -204,7 +203,7 @@ void Grasshopper::ApplyXSL(Block& data, const Block& key)
     vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
     vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 5) + 0xB000), 1);
     vec1 = _mm256_xor_si256(vec1, vec2);
-    
+
     vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
     vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 6) + 0xD000), 1);
     vec1 = _mm256_xor_si256(vec1, vec2);
@@ -219,20 +218,49 @@ void Grasshopper::ApplyXSL(Block& data, const Block& key)
 
 void Grasshopper::ApplyInvXLS(Block& data, const Block& key)
 {
-    ApplyX(data, key);
-    Block tmp{};
+    __m128i tmp1 = _mm_and_si128 (CastBlock(Table::mask), CastBlock(data));
+    __m128i tmp2 = _mm_andnot_si128 (CastBlock(Table::mask), CastBlock(data));
+    tmp1 = _mm_srli_epi64 (tmp1, 4);
+    tmp2 = _mm_slli_epi64 (tmp2, 4);
+
+    uint8_t* table = (uint8_t*)&(dec_ls_table[0][0]);
     __m256i vec1 = _mm256_setzero_si256();
-#pragma clang loop unroll(full)
-    for (size_t i = 0; i < block_size; i += 2)
-    {
-        __m256i vec2 = _mm256_castps128_ps256(CastBlock(dec_ls_table[i][data[i]]));
-        vec2 = _mm256_insertf128_ps(vec2, CastBlock(dec_ls_table[i + 1][data[i + 1]]), 1);
-        vec1 = _mm256_xor_si256(vec1, vec2);
-    }
-    CastBlock(tmp) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
-                                   _mm256_extracti128_si256(vec1, 1));
-    std::transform(tmp.begin(), tmp.end(), data.begin(),
-                   [](uint8_t idx) { return Table::invS[idx]; });
+    __m256i vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 0) + 0x0000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 0) + 0x1000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 1) + 0x2000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 1) + 0x3000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 2) + 0x4000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 2) + 0x5000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 3) + 0x6000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 3) + 0x7000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 4) + 0x8000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 4) + 0x9000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 5) + 0xA000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 5) + 0xB000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 6) + 0xC000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 6) + 0xD000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    vec2 = _mm256_castps128_ps256(*(__m128i*)(table + _mm_extract_epi16(tmp2, 7) + 0xE000));
+    vec2 = _mm256_insertf128_ps(vec2, *(__m128i*)(table + _mm_extract_epi16(tmp1, 7) + 0xF000), 1);
+    vec1 = _mm256_xor_si256(vec1, vec2);
+
+    CastBlock(data) = _mm_xor_si128(_mm256_extracti128_si256(vec1, 0),
+                                    _mm256_extracti128_si256(vec1, 1));
+
+    ApplyX(data, key);
 }
 
 Grasshopper::Keys Grasshopper::GenerateKeys(const KeyPair& key)
@@ -254,6 +282,13 @@ void Grasshopper::ApplyF(Block& data1, Block& data0, const Block& key)
     ApplyXSL(tmp, key);
     ApplyX(tmp, data0);
     std::tie(data1, data0) = std::make_pair(tmp, data1);
+}
+
+void Grasshopper::GenerateMulTable()
+{
+    for (unsigned i = 0; i < 256; ++i)
+        for (unsigned j = 0; j < 256; ++j)
+            mul_table[i][j] = PolyMul(i, j);
 }
 
 void Grasshopper::GenerateCoefTable()
@@ -287,7 +322,7 @@ void Grasshopper::GenerateEncTable()
     for (size_t i = 0; i < block_size; ++i)
         for (size_t j = 0; j < 256; ++j)
             for (size_t k = 0; k < block_size; ++k)
-                enc_ls_table[i][j][k] = PolyMul(Table::S[j], l_matrix[k][i]);
+                enc_ls_table[i][j][k] = mul_table[Table::S[j]][l_matrix[k][i]];
 }
 
 void Grasshopper::GenerateDecTable()
@@ -309,7 +344,7 @@ void Grasshopper::GenerateDecTable()
     for (size_t i = 0; i < block_size; ++i)
         for (size_t j = 0; j < 256; ++j)
             for (size_t k = 0; k < block_size; ++k)
-                dec_ls_table[i][j][k] = PolyMul(j, l_matrix[k][i]);
+                dec_ls_table[i][j][k] = mul_table[Table::invS[j]][l_matrix[k][i]];
 }
 
 uint8_t Grasshopper::PolyMul (uint8_t left, uint8_t right)
@@ -332,7 +367,7 @@ Grasshopper::Matrix Grasshopper::SqrMatrix(const Matrix& mat)
     for (size_t i = 0; i < block_size; ++i)
         for (size_t j = 0; j < block_size; ++j)
             for (size_t k = 0; k < block_size; ++k)
-                res[i][j] ^= PolyMul(mat[i][k], mat[k][j]);
+                res[i][j] ^= mul_table[mat[i][k]][mat[k][j]];
     return res;
 }
 
@@ -349,9 +384,24 @@ void Grasshopper::ApplyL(Block& data)
     {
         uint8_t tmp = 0;
         for (size_t j = 0; j < block_size; ++j)
-            tmp ^= PolyMul(data[j], Table::lin[j]);
+            tmp ^= mul_table[data[j]][Table::lin[j]];
         std::copy_backward(data.begin(), data.end() - 1, data.end());
         data[0] = tmp;
+    }
+}
+
+void Grasshopper::ApplyInvL(Block& data)
+{
+    for (unsigned i = 0; i < block_size; ++i)
+    {
+        uint8_t elem = data[0];
+        std::copy(data.begin() + 1, data.end(), data.begin());
+        data[block_size - 1] = elem;
+
+        uint8_t tmp = 0;
+        for (size_t j = 0; j < block_size; ++j)
+            tmp ^= mul_table[data[j]][Table::lin[j]];
+        data[15] = tmp;
     }
 }
 

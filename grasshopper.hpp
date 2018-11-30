@@ -74,6 +74,7 @@ private:
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
     Block coef_table[num_rounds / 2 - 1][8];
+    uint8_t mul_table[256][256];
     Block enc_ls_table[block_size][256];
     Block dec_ls_table[block_size][256];
 
@@ -86,6 +87,7 @@ private:
     Keys GenerateKeys(const KeyPair& key);
     void ApplyF(Block& data0, Block& data1, const Block& key);
 
+    void GenerateMulTable();
     void GenerateCoefTable();
     void GenerateEncTable();
     void GenerateDecTable();
@@ -94,6 +96,7 @@ private:
     Matrix SqrMatrix(const Matrix& mat);
     void ApplyX(Block& data, const Block& key);
     void ApplyL(Block& data);
+    void ApplyInvL(Block& data);
 };
 
 void DumpBlock(const Grasshopper::Block& block);
