@@ -80,7 +80,7 @@ private:
     Block dec_ls_table[block_size][256];
 
     void EncryptBlock(Block& data, const Keys& key);
-    void EncryptBlock(__m256i& blocks2, const Keys& keys);
+    void EncryptBlock(__m256i& d_block, const Keys& keys);
     void DecryptBlock(Block& data, const Keys& key);
     void DecryptBlock(__m256i& d_block, const Keys& keys);
 

@@ -23,4 +23,4 @@ profile: $(APP_NAME)
 
 clean:
 	rm -f *.o $(APP_NAME) callgrind.out
-	rm -r TEST*
+	rm -rf TEST*

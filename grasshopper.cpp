@@ -122,9 +122,6 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
 
     if (mode == Mode::ECB)
     {
-        for (auto& block: data)
-            DecryptBlock(block, keys);
-        /*
         __m256i d_block = _mm256_setzero_si256();
         for (size_t i = 0; i < data.size(); i += 2)
         {
@@ -137,8 +134,7 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
             data[i + 1] = *reinterpret_cast <Block*> (&tmp2);
         }
         if (data.size() % 2)
-            EncryptBlock(data[data.size() - 1], keys);
-        */
+            DecryptBlock(data[data.size() - 1], keys);
     }
     else if (mode == Mode::CBC)
     {
@@ -225,6 +221,18 @@ void Grasshopper::DecryptBlock(Block& data, const Keys& keys)
 #endif
 }
 
+void Grasshopper::DecryptBlock(__m256i& d_block, const Keys& keys)
+{
+    uint8_t *data = (uint8_t*)(&d_block);
+    std::transform(data, data + 2 * block_size, data,
+                   [](uint8_t idx) { return Table::S[idx]; });
+    for (unsigned i = num_rounds - 1; i > 0; --i)
+        ApplyInvXLS(d_block, keys[i]);
+    std::transform(data, data + 2 * block_size, data,
+                   [](uint8_t idx) { return Table::invS[idx]; });
+    ApplyX(d_block, keys[0]);
+}
+
 void Grasshopper::ApplyXSL(Block& data, const Block& key)
 {
     ApplyX(data, key);
@@ -274,7 +282,7 @@ void Grasshopper::ApplyXSL(__m256i& big_data, const Block& d_key)
     __m256i vec2 = _mm256_setzero_si256 ();
     __m256i vec3 = _mm256_setzero_si256 ();
     big_data = _mm256_setzero_si256 ();
-    char* table = (char*)&enc_ls_table[0][0];
+    uint8_t *table = (uint8_t*)&enc_ls_table[0][0];
 
     big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 0) + 0x0000), 0);
     big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 8) + 0x0000), 1);
@@ -394,7 +402,7 @@ void Grasshopper::ApplyInvXLS(__m256i& big_data, const Block& d_key)
     __m256i vec2 = _mm256_setzero_si256 ();
     __m256i vec3 = _mm256_setzero_si256 ();
     big_data = _mm256_setzero_si256 ();
-    char* table = (char*)&enc_ls_table[0][0];
+    uint8_t *table = (uint8_t*)&dec_ls_table[0][0];
 
     big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 0) + 0x0000), 0);
     big_data = _mm256_inserti128_si256 (big_data, CastBlock(table + _mm256_extract_epi16(tmp2, 8) + 0x0000), 1);

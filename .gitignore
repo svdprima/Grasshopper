@@ -2,6 +2,7 @@
 grasshopper
 encrypted.txt
 decrypted.txt
+TEST_*
 .directory
 *.swo
 *.swp
