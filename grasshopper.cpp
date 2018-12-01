@@ -66,7 +66,7 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
     if (mode == Mode::ECB)
     {
         __m256i d_block = _mm256_setzero_si256();
-        for (size_t i = 0; i < data.size(); i += 2)
+        for (size_t i = 0; i < data.size() - 1; i += 2)
         {
             d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i]), 0);
             d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i + 1]), 1);
@@ -123,7 +123,7 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     if (mode == Mode::ECB)
     {
         __m256i d_block = _mm256_setzero_si256();
-        for (size_t i = 0; i < data.size(); i += 2)
+        for (size_t i = 0; i < data.size() - 1; i += 2)
         {
             d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i]), 0);
             d_block = _mm256_inserti128_si256(d_block, CastBlock(data[i + 1]), 1);
