@@ -1,0 +1,105 @@
+\addcontentsline{etoc}{chapter}{\textit{Dorokhin S.\,V., Kachkov S.\,S., Sidorenko A.\,A} Implementation of GOST R 34.12 2015 cipher using SIMD instructions}
+
+\begin{abstract}
+В данной работе обсуждаются возможности увеличения скорости работы блочного шифра ГОСТ Р 34.12 2015, известного как "Кузнечик". В отличие от шифра AES, "Кузнечик" не имеет аппартной поддержки на процессорах Intel и AMD,
+поэтому вопрос о максимально возможной скорости за- и расшифрования стоит особенно остро. В первой части работы кратко описано устройство шифра и рассмотрены известные на текущий момент методы ускорения, связанные с использованием таблиц предвычислений.
+Далее описываются опубликованные в свободном доступе варианты реализации, основанные на наборах векторных инструкций SSE и AVX. В следующей части мы представляем наши модификации упомянутых реализаций с использованием набора инструкций AVX2
+для некоторых режимов работы шифра. В заключение приводится сравнительная характеристика скорости работы шифра в различных реализациях.
+
+\kwr SIMD инструкции, Кузнечик, SSE, AVX, ГОСТ Р 34.12 2015, программная реализация.
+
+\blfootnote{\hspace{-7pt}\textcopyright \, Dorokhin S.\,V., Kachkov S.\,S., Sidorenko A.\,A. 2018\\ \indent\textcopyright \, Федеральное государственное автономное образовательное учреждение высшего образования\\
+\indent\hspace{15pt}<<Московский физико-технический институт
+(государственный университет)>>, 2018}
+
+\end{abstract}
+
+\arthead{S.\,V. Dorokhin$^{1, 2}$, S.\,S. Kachkov$^{1, 3}$, A.\,A. Sidorenko^{1, 3}$}
+{$^{1}$Moscow Institute of Physics and Technology\par
+ $^{2}$JSC "Milandr"\par
+ $^{3}$JSC "Intel"\par}
+{Implementation of GOST R 34.12 2015 cipher using SIMD instructions}
+
+\begin{abstract}
+This article is dedicated to optimized implementations of GOST R 34.12 2015 block cipher. Compared with AES cipher, GOST cipher is not supported on hardware level by any known processors. 
+That is why the task of exploring its maximum encryption/decryption speed is a crucial one. In the first section the cipher's algorithm and a brief description of relatively trivial LUT (lookup tables) optimizations are given.
+The next paragraph consists of a consise overview of currently available implementations which use vector command sets SSE and AVX. Finally, our AVX-based modifications are presented 
+followed by a comparative analysis of open-source implementations.
+	
+\kwe SIMD instructions, SSE, AVX, GOST R 34.12 2015, block cipher, software implementation.
+\end{abstract}
+\bigskip
+
+%Примерная структура статьи.
+
+\section{Введение}
+
+Для полноты изложения приведём краткое описание алгоритма, более подробную информацию можно найти в документации на сайте технического коммитета по стандартизации [1]. 
+Пусть Vs -- множество всевозможных двоичных строк длинны s. Алгоритм зашифрования сводится к послеовательному применению следующих операций:\\* 
+X[k](a) = k xor a, где K, a прин. V128 -- побитовая операция сложиения по модулю 2;\\*
+S(a) = S(a15||...||a0) = pi(a15)||...||pi(a0), ai прин V8 -- биективное нелинейное преобразование;\\*
+L: V128 -> V128 -- некоторое линейное преобразование.\\*
+С учётом этих обозначений функции зашифрования E[k] и расшифрования D[k] могут быть представлены в следующем виде:\\*
+EK1,...,K10(a) = X[k10]*LSX[K9]...LSX[K2]LSX[K1](a);\\*
+DK1,...,K10(a) = X[K1]S-1L-1X[K2]...S-1L-1X[K9]S-1L-1X[K10](a),\\*
+где K1, ... K10 -- раундовые ключи. Эти ключи вырабатываются один раз в начале алгоритма и не оказывают существенного влияния на скорость работы шифра. Процедуру генерации этих ключей можно также найти на сайте комитета по стандартизации [1].
+Линейное преобразование L может быть осуществленно с помощью 16 циклов работы РСЛОС (регистра сдвига с линейной обратной связью), показанного на рисунке 1.\\*
+рисунок 1, регистр сдвига\\*
+Такое решение является предпочтительным при аппаратной реализации шифра, однако при создании программной реализации удобнее представить его в матричной форме. Результат работы одного такта РСЛОС можно записать в виде\\*
+формулка\\*
+Соответсвенно, результат работы после k тактов:\\*
+формулка\\*
+Применение L-преобразования в такой форме существенно быстрее, чем при моделировании РСЛОЛ. Однако профилирование программы при помощи утилиты callgrind показало, что на L преобразование приходится приблизительно 75\% \begin{comment} проверить! \end{comment}
+времени исполнения программы.
+Следуя принципу make common case fast, необходимо оптимизировать именно L-преобразование, чему, по существу, и посвящена эта статья. 
+\section{Построение таблиц предвычислений}
+Описать структуру и генерацию LUT.
+\section{Реализация с использованием векторных инструкций}
+\subsection{Набор инструкций SSE}
+SSE добавить описание команд, посчитать суммарный CPI и latency, исполльзуя интеловский онлайн-справочник
+\subsection{Учёт особенностей планировщика}
+2 AGU, чет-нечёт
+найти какую-нибудь информацию о кол-ве AGU в интеловских процах в таком виде, чтобы на неё можно было сослаться
+\subsection{Набор инструкций AVX}
+описать неудачную попытку использовать ymm регистры внутри ApplyXSL
+\section{Использование AVX2 в некоторых режимах}
+Можно заюзать ymm там, где нет истинных зависимостей
+\subsection{Модификация режима ECB}
+\subsection{Модификация расшифрования в режиме CFB}
+\section{Сравнительный анализ}
+Зависит от конкретного процессора! Зависит от архитектуры! (skylake и далее - лучше, РАЗОБРАТЬСЯ, ПОЧЕМУ)
+Посчитать cpb (clocks per byte)
+\section{Заключение}
+
+Текст заключения.
+
+\hfil \hbox to 0.3\textwidth{\hrulefill} \smallskip
+
+%Литература
+\begin{thebibliography}{99}
+
+\bibitem{s1} \textit{Шевченко Д.\,В., Шевченко В.\,П.} Выбор и оптимизация структуры построения автономных сейсмических средств обнаружения рубежного типа // Материалы VIII всероссийской научно-технической конференции <<Современные охранные технологии и средства обеспечения комплексной безопасности объектов>>. --- 2010. --- С.~128--133.
+
+\bibitem{s2} \textit{Diallo M.\,S., Kulesh M., Holschneider M., Sherbaum F., Adler F.} Characterization of polarization attributes of seismic waves using continuous wavelet transforms // Geophysics.~--- 2006.~--- V.~71, N.~3.~--- P.~67--77.
+
+\bibitem{s3}  \textit{Лайонс Р.}  Цифровая обработка сигналов.~--- М.: Бином, 2006.~--- С.~361--369.
+
+\end{thebibliography}
+
+%References
+\selectlanguage{english}
+\begin{thebibliography}{99}
+\selectlanguage{russian}
+
+\bibitem{s1} \textit{Shevchenko D.\,V., Shevchenko V.\,P.} Selection and optimization of constructing autonomous seismic detection struction a landmark type // Proceedings of the VIII Russian scientific conference ‘‘Modern security technology and means of complex security objectives’’.~--- 2010. --- P.~128--133. --- (in Russian).
+
+\bibitem{s2} \textit{Diallo M.\,S., Kulesh M., Holschneider M., Sherbaum F., Adler F.} Characterization of polarization attributes of seismic waves using continuous wavelet transforms // Geophysics.~--- 2006.~--- V.~71, N.~3.~--- P.~67--77.
+
+\bibitem{s3}  \textit{Lyons R.} Digital signal processing.~--- M.: Binom, 2006.~--- P.~361--369. --- (in Russian).
+
+\end{thebibliography}
+\selectlanguage{russian}
+
+\begin{flushright}
+ \textit{Поступила в редакцию дд.мм.гггг.}
+\end{flushright} 
