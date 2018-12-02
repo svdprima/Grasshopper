@@ -48,15 +48,7 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
     if (mode == Mode::ECB)
     {
         for (size_t i = 0; i + 1 < data.size(); i += 2)
-        {
-            DoubleBlock d_block = _mm256_castsi128_si256(data[i]);
-            d_block = _mm256_inserti128_si256(d_block, data[i + 1], 1);
-            EncryptBlock(d_block, keys);
-            __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
-            __m128i tmp2 = _mm256_extracti128_si256 (d_block, 1);
-            data[i]     = tmp1;
-            data[i + 1] = tmp2;
-        }
+            EncryptBlock(*reinterpret_cast<DoubleBlock*>(&data[i]), keys);
         if (data.size() % 2)
             EncryptBlock(data[data.size() - 1], keys);
     }
@@ -104,13 +96,7 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     if (mode == Mode::ECB)
     {
         for (size_t i = 0; i + 1 < data.size(); i += 2)
-        {
-            DoubleBlock d_block = _mm256_castsi128_si256(data[i]);
-            d_block = _mm256_inserti128_si256(d_block, data[i + 1], 1);
-            DecryptBlock(d_block, keys);
-            data[i]     = _mm256_extracti128_si256 (d_block, 0);
-            data[i + 1] = _mm256_extracti128_si256 (d_block, 1);
-        }
+            DecryptBlock(*reinterpret_cast<DoubleBlock*>(&data[i]), keys);
         if (data.size() % 2)
             DecryptBlock(data.back(), keys);
     }
@@ -215,6 +201,7 @@ void Grasshopper::ApplyInvXLS(BlockType& data, const Block& key)
     ApplyX(data, key);
 }
 
+__attribute__((always_inline))
 void Grasshopper::ApplyLS(Block& data, const LookupTable& lut)
 {
     __m128i tmp1 = _mm_and_si128 (mask, data);
@@ -249,6 +236,7 @@ void Grasshopper::ApplyLS(Block& data, const LookupTable& lut)
     data = _mm_xor_si128(vec1, vec2);
 }
 
+__attribute__((always_inline))
 void Grasshopper::ApplyLS(DoubleBlock& data, const LookupTable& lut)
 {
     __m256i tmp1 = _mm256_and_si256 (d_mask, data);

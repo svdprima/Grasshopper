@@ -22,7 +22,7 @@ public:
             return nullptr;
         if (n > max_size)
             throw std::length_error("AlignedAllocator::allocate() - integer overflow");
-        void *p = std::aligned_alloc(sizeof(T), n * sizeof(T));
+        void *p = std::aligned_alloc(sizeof(T) * 2, n * sizeof(T));
         if (!p)
             throw std::bad_alloc();
         return static_cast<T*>(p);
@@ -66,7 +66,7 @@ public:
     {
         Block() = default;
 
-        Block(__m128i val)
+        Block(const __m128i& val)
         {
             *reinterpret_cast<__m128i*>(this) = val;
         }
@@ -93,7 +93,7 @@ public:
     {
         DoubleBlock() = default;
 
-        DoubleBlock(__m256i val)
+        DoubleBlock(const __m256i& val)
         {
             *reinterpret_cast<__m256i*>(this) = val;
         }
