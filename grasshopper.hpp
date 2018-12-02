@@ -62,7 +62,60 @@ public:
     static constexpr std::size_t block_size = 16;
     static constexpr unsigned num_rounds = 10;
 
-    using Block = struct alignas(block_size) : std::array<uint8_t, block_size> {};
+    struct alignas(block_size) Block : std::array<uint8_t, block_size>
+    {
+        Block() = default;
+
+        Block(__m128i val)
+        {
+            *reinterpret_cast<__m128i*>(this) = val;
+        }
+
+        Block(const std::array<uint8_t, block_size>& arr)
+            : std::array<uint8_t, block_size>(arr)
+        {
+        }
+
+        operator __m128i() const
+        {
+            return *reinterpret_cast<const __m128i*>(this);
+        }
+
+        void Dump()
+        {
+            for (auto x: *this)
+                printf("%02x", x);
+            printf("\n");
+        }
+    };
+
+    struct alignas(block_size * 2) DoubleBlock : std::array<uint8_t, block_size * 2>
+    {
+        DoubleBlock() = default;
+
+        DoubleBlock(__m256i val)
+        {
+            *reinterpret_cast<__m256i*>(this) = val;
+        }
+
+        DoubleBlock(const std::array<uint8_t, block_size * 2>& arr)
+            : std::array<uint8_t, block_size * 2>(arr)
+        {
+        }
+
+        operator __m256i() const
+        {
+            return *reinterpret_cast<const __m256i*>(this);
+        }
+
+        void Dump()
+        {
+            for (auto x: *this)
+                printf("%02x", x);
+            printf("\n");
+        }
+    };
+
     using Key = std::array<uint8_t, block_size * 2>;
     using Data = std::vector<Block, AlignedAllocator<Block>>;
 
@@ -74,21 +127,23 @@ private:
     using Matrix = std::array<Block, block_size>;
     using Keys = std::array<Block, num_rounds>;
     using KeyPair = std::pair<Block, Block>;
+    using LookupTable = Block[block_size][256];
     Block coef_table[num_rounds / 2 - 1][8];
     uint8_t mul_table[256][256];
-    Block enc_ls_table[block_size][256];
-    Block dec_ls_table[block_size][256];
+    LookupTable enc_ls_table;
+    LookupTable dec_ls_table;
 
-    void EncryptBlock(Block& data, const Keys& key);
-    void EncryptBlock(__m256i& d_block, const Keys& keys);
-    void DecryptBlock(Block& data, const Keys& key);
-    void DecryptBlock(__m256i& d_block, const Keys& keys);
+    template<typename BlockType>
+    void EncryptBlock(BlockType& data, const Keys& keys);
+    template<typename BlockType>
+    void DecryptBlock(BlockType& data, const Keys& keys);
 
-    void ApplyXSL(Block& data, const Block& key);
-    void ApplyXSL(__m256i& big_data, const Block& key);
-    void ApplyInvXLS(Block& data, const Block& key);
-    void ApplyInvXLS(__m256i& big_data, const Block& key);
-
+    template<typename BlockType>
+    void ApplyXSL(BlockType& data, const Block& key);
+    template<typename BlockType>
+    void ApplyInvXLS(BlockType& data, const Block& key);
+    void ApplyLS(Block& data, const LookupTable& lut);
+    void ApplyLS(DoubleBlock& data, const LookupTable& lut);
 
     Keys GenerateKeys(const KeyPair& key);
     void ApplyF(Block& data0, Block& data1, const Block& key);
@@ -101,11 +156,9 @@ private:
     uint8_t PolyMul(uint8_t left, uint8_t right);
     Matrix SqrMatrix(const Matrix& mat);
     void ApplyX(Block& data, const Block& key);
-    void ApplyX(__m256i& big_data, const Block& key);
+    void ApplyX(DoubleBlock& data, const Block& key);
     void ApplyL(Block& data);
     void ApplyInvL(Block& data);
 };
-
-void DumpBlock(const Grasshopper::Block& block);
 
 #endif
