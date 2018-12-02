@@ -47,10 +47,9 @@ void Grasshopper::Encrypt(Data& data, const Key& key, Mode mode)
 
     if (mode == Mode::ECB)
     {
-        DoubleBlock d_block = _mm256_setzero_si256();
-        for (size_t i = 0; i < data.size() - 1; i += 2)
+        for (size_t i = 0; i + 1 < data.size(); i += 2)
         {
-            d_block = _mm256_inserti128_si256(d_block, data[i], 0);
+            DoubleBlock d_block = _mm256_castsi128_si256(data[i]);
             d_block = _mm256_inserti128_si256(d_block, data[i + 1], 1);
             EncryptBlock(d_block, keys);
             __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
@@ -104,19 +103,16 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
 
     if (mode == Mode::ECB)
     {
-        DoubleBlock d_block = _mm256_setzero_si256();
-        for (size_t i = 0; i < data.size() - 1; i += 2)
+        for (size_t i = 0; i + 1 < data.size(); i += 2)
         {
-            d_block = _mm256_inserti128_si256(d_block, data[i], 0);
+            DoubleBlock d_block = _mm256_castsi128_si256(data[i]);
             d_block = _mm256_inserti128_si256(d_block, data[i + 1], 1);
             DecryptBlock(d_block, keys);
-            __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
-            __m128i tmp2 = _mm256_extracti128_si256 (d_block, 1);
-            data[i]     = tmp1;
-            data[i + 1] = tmp2;
+            data[i]     = _mm256_extracti128_si256 (d_block, 0);
+            data[i + 1] = _mm256_extracti128_si256 (d_block, 1);
         }
         if (data.size() % 2)
-            DecryptBlock(data[data.size() - 1], keys);
+            DecryptBlock(data.back(), keys);
     }
     else if (mode == Mode::CBC)
     {
@@ -130,12 +126,21 @@ void Grasshopper::Decrypt(Data& data, const Key& key, Mode mode)
     }
     else if (mode == Mode::CFB)
     {
-        for (auto& block: data)
+        for (size_t i = 0; i + 1 < data.size(); i += 2)
         {
-            Block cblock = block;
+            DoubleBlock d_block = _mm256_castsi128_si256(feedback);
+            d_block = _mm256_inserti128_si256(d_block, data[i], 1);
+            EncryptBlock(d_block, keys);
+            feedback = data[i + 1];
+            __m128i tmp1 = _mm256_extracti128_si256 (d_block, 0);
+            __m128i tmp2 = _mm256_extracti128_si256 (d_block, 1);
+            ApplyX(data[i]    , tmp1);
+            ApplyX(data[i + 1], tmp2);
+        }
+        if (data.size() % 2)
+        {
             EncryptBlock(feedback, keys);
-            ApplyX(block, feedback);
-            feedback = cblock;
+            ApplyX(data.back(), feedback);
         }
     }
     else if (mode == Mode::OFB)
