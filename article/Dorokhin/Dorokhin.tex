@@ -1,12 +1,14 @@
-\addcontentsline{etoc}{chapter}{\textit{Dorokhin S.\,V., Kachkov S.\,S., Sidorenko A.\,A} Implementation of GOST R 34.12 2015 cipher using SIMD instructions}
+\addcontentsline{etoc}{chapter}{\textit{Dorokhin S.\,V., Kachkov S.\,S., Sidorenko A.\,A} Implementation of Kuznyechik cipher using vector instructions}
 
 \begin{abstract}
-В данной работе обсуждаются возможности увеличения скорости работы блочного шифра ГОСТ Р 34.12 2015, известного как "Кузнечик". В отличие от шифра AES, "Кузнечик" не имеет аппартной поддержки на процессорах Intel и AMD,
-поэтому вопрос о максимально возможной скорости за- и расшифрования стоит особенно остро. В первой части работы кратко описано устройство шифра и рассмотрены известные на текущий момент методы ускорения, связанные с использованием таблиц предвычислений.
-Далее описываются опубликованные в свободном доступе варианты реализации, основанные на наборах векторных инструкций SSE и AVX. В следующей части мы представляем наши модификации упомянутых реализаций с использованием набора инструкций AVX2
-для некоторых режимов работы шифра. В заключение приводится сравнительная характеристика скорости работы шифра в различных реализациях.
-
-\kwr SIMD инструкции, Кузнечик, SSE, AVX, ГОСТ Р 34.12 2015, программная реализация.
+Целью данной работы является создание оптимизированной программной реализации блочного шифра ГОСТ Р 34.12 2015, известного как <<Кузнечик>>.
+В ходе исследования был проведён анализ возможных средств улучшения скорости работы шифра. Основное внимание уделено использованию SIMD (Single Instruction Multiple Data) инструкций
+и учёту общедоступной информации об устройстве Execution Engine процессоров Intel\textregistered Core\textsuperscript{TM} поколения Sandy Bridge и новее. 
+Отличительной особенностью статьи является то,
+что в ней представлены измерения скорости зашифрования и расшифрования в режимах ECB, CBC, CFB, OFB на процессорах четырёх различных поколений (включая Kaby Lake R), 
+в открытом доступе выложен исходный код высокоскоростной реализации и скриптового интерфейса для автоматического тестирования. Для дальнейшего ускорения используется набор команд AVX2. 
+Предлагается использование 256-битных регистров для ускорения зашифрования и расшифрования в режиме ECB, расшифрования в режиме CFB.
+\kwr ГОСТ Р 34.12 2015, высокоскоростная реализация, LSX-преобразование, блочный шифр, SSE, AVX.
 
 \blfootnote{\hspace{-7pt}\textcopyright \, Dorokhin S.\,V., Kachkov S.\,S., Sidorenko A.\,A. 2018\\ \indent\textcopyright \, Федеральное государственное автономное образовательное учреждение высшего образования\\
 \indent\hspace{15pt}<<Московский физико-технический институт
@@ -14,19 +16,20 @@
 
 \end{abstract}
 
-\arthead{S.\,V. Dorokhin$^{1, 2}$, S.\,S. Kachkov$^{1, 3}$, A.\,A. Sidorenko^{1, 3}$}
+\arthead{S.\,V. Dorokhin$^{1, 2}$, S.\,S. Kachkov$^{1, 3}$, A.\,A. Sidorenko$^{1, 3}$}
 {$^{1}$Moscow Institute of Physics and Technology\par
  $^{2}$JSC "Milandr"\par
  $^{3}$JSC "Intel"\par}
-{Implementation of GOST R 34.12 2015 cipher using SIMD instructions}
+{Implementation of Kuznyechik cipher using vector instructions}
 
 \begin{abstract}
-This article is dedicated to optimized implementations of GOST R 34.12 2015 block cipher. Compared with AES cipher, GOST cipher is not supported on hardware level by any known processors. 
-That is why the task of exploring its maximum encryption/decryption speed is a crucial one. In the first section the cipher's algorithm and a brief description of relatively trivial LUT (lookup tables) optimizations are given.
-The next paragraph consists of a consise overview of currently available implementations which use vector command sets SSE and AVX. Finally, our AVX-based modifications are presented 
-followed by a comparative analysis of open-source implementations.
-	
-\kwe SIMD instructions, SSE, AVX, GOST R 34.12 2015, block cipher, software implementation.
+This article is concentrated on highly-optimized implementation of block cipher GOST R 34.12 2015, also known as Kuznyechik. A comparative analysis of possible imporvements is presented,
+with the SIMD (Single Instruction Multiple Data) instructions being in focus. The publicly available information about Intel\textregistered Core\textsuperscript{TM} Execution Engine (starting 
+with Sandy Bridge) was taken into consideration. AVX2 instruction set gets our special attention. 
+The key feature of the article is that a cutting-edge open-source implementation is presented. The abovementioned implementation allows to compare 4 modes of operation,
+such as ECB, CBC, CFB and OFB. The results in this paper are given for 4 modern generations of Intel\textregistered Core\textsuperscript{TM} line (with Kaby Lake R being the newest one).
+We also suggest using 256-bit ymm registers and AVX2 instruction set to boost ECB mode encryption \& decryption and CFB mode decryption.
+\kwe GOST R 34.12 2015, high-speed implementation, LSX-transform, block cipher, SSE, AVX.
 \end{abstract}
 \bigskip
 
@@ -114,11 +117,14 @@ data = _mm_xor_si128(vec1, vec2);
 %Литература
 \begin{thebibliography}{99}
 
-\bibitem{s1} \textit{Шевченко Д.\,В., Шевченко В.\,П.} Выбор и оптимизация структуры построения автономных сейсмических средств обнаружения рубежного типа // Материалы VIII всероссийской научно-технической конференции <<Современные охранные технологии и средства обеспечения комплексной безопасности объектов>>. --- 2010. --- С.~128--133.
+\bibitem{s1} \textit{Алексеев Е.\,К., Попов В.\,О., Прохоров А.\,С., Смышляев С.\В., Сонина Л.\,А.}
+Об эксплуатационных качествах одного перспективного блочного шифра типа LSX // Математические вопросы криптографии. --- 2015.~--- T.~6, вып.~2.~--- С.~6--17.
 
-\bibitem{s2} \textit{Diallo M.\,S., Kulesh M., Holschneider M., Sherbaum F., Adler F.} Characterization of polarization attributes of seismic waves using continuous wavelet transforms // Geophysics.~--- 2006.~--- V.~71, N.~3.~--- P.~67--77.
+\bibitem{s2}  \textit{Бородин М.\,А., Рыбкин А.\,С.}  Высокоскоростные программные реализации блочного шифра Кузнечик // Проблемы информационной безопасности. Компьютерные системы.~--- 
+2014.~--- Вып.~3.~--- С.~67--73.
 
-\bibitem{s3}  \textit{Лайонс Р.}  Цифровая обработка сигналов.~--- М.: Бином, 2006.~--- С.~361--369.
+\bibitem{s3} \textit{Рыбкин  А.\,С.} О программной реализации алгоритма Кузнечик на процессорах Intel // Математические вопросы криптографии.~--- 2018.~--- Т.~9, вып.~2.~--- С.~117--127.
+
 
 \end{thebibliography}
 
@@ -127,11 +133,13 @@ data = _mm_xor_si128(vec1, vec2);
 \begin{thebibliography}{99}
 \selectlanguage{russian}
 
-\bibitem{s1} \textit{Shevchenko D.\,V., Shevchenko V.\,P.} Selection and optimization of constructing autonomous seismic detection struction a landmark type // Proceedings of the VIII Russian scientific conference ‘‘Modern security technology and means of complex security objectives’’.~--- 2010. --- P.~128--133. --- (in Russian).
+\bibitem{s1} \textit{Alekseev E.\,K., Popov V.\,O., Prokhorov A.\,S., Smyshlyaev S.\,V., Sonina L.\,A.} On the performance of one perspective LSX-based block cipher
+// Mathematical Aspects of Cryptography.~--- 2015.~ --- V.~6, N.~2.~ --- P.~6--17.
 
-\bibitem{s2} \textit{Diallo M.\,S., Kulesh M., Holschneider M., Sherbaum F., Adler F.} Characterization of polarization attributes of seismic waves using continuous wavelet transforms // Geophysics.~--- 2006.~--- V.~71, N.~3.~--- P.~67--77.
+\bibitem{s2}  \textit{Borodin M.\,A., Rybkin A.\,S.} High-Speed Software Implementation of Kuznyetchik block cipher.~--- Information Security Problems. Computer Systems~--- 2014.~ ---
+N.~3 ---P.~67-73.
 
-\bibitem{s3}  \textit{Lyons R.} Digital signal processing.~--- M.: Binom, 2006.~--- P.~361--369. --- (in Russian).
+\bibitem{s3} \textit{Rybkin A.\,S.} On software implementation of Kuznyechik on Intel CPUs  // Mathematical Aspects of Cryptography.~--- 2018.~--- V.~9, N.~1.~--- P.~117--127.
 
 \end{thebibliography}
 \selectlanguage{russian}
