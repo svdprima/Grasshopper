@@ -126,6 +126,61 @@ data = _mm_xor_si128(vec1, vec2);
 \section{Сравнительный анализ}
 Зависит от конкретного процессора! Зависит от архитектуры! (skylake и далее - лучше, РАЗОБРАТЬСЯ, ПОЧЕМУ)
 Посчитать cpb (clocks per byte)
+
+\begin{table}[h!]
+\begin{flushright}
+{Т а б л и ц а 1}\\
+\centering
+\textbf{Скорость шифрования в режиме ECB, Mb/s}
+\end{flushright}
+\centering
+\begin{tabular}{|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1in}|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1.5in}|}
+\hline
+         & i3-4030u   & i5-5200u & i5-8250u & i5-7200u  \\ \hline
+baseline & 6          & 8,8      & 11,4     & 10,2      \\ \hline
+with LUT & 53         & 77       & 107      & 99        \\ \hline
+LUT, xor & 69         & 99       & 139      & 131       \\ \hline
+offset   & 79         & 113      & 142      & 135       \\ \hline
+AVX2     & 84         & 121      & 159      & 150       \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\begin{flushright}
+{Т а б л и ц а 2}\\
+\centering
+\textbf{Скорость расшифрования в режиме ECB, Mb/s}
+\end{flushright}
+\centering
+\begin{tabular}{|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1in}|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1.5in}|}
+\hline
+         & i3-4030u   & i5-5200u & i5-8250u & i5-7200u  \\ \hline
+baseline & 5          & 7,8      & 9        & 9,2       \\ \hline
+with LUT & 43         & 64       & 85       & 74        \\ \hline
+LUT, xor & 58         & 85       & 110      & 101       \\ \hline
+offset   & 62         & 88       & 116      & 105       \\ \hline
+AVX2     & 69         & 102      & 136      & 121       \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\begin{flushright}
+{Т а б л и ц а 3}\\
+\centering
+\textbf{Скорость расшифрования в режиме CFB, Mb/s}
+\end{flushright}
+\centering
+\begin{tabular}{|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1in}|>{\centering\arraybackslash}m{1.5in}|>{\centering\arraybackslash}m{1.5in}|}
+\hline
+         & i3-4030u   & i5-5200u & i5-8250u & i5-7200u  \\ \hline
+baseline & 5,2        & 8,7      & 9,4      & 10,2      \\ \hline
+with LUT & 50         & 73       & 103      & 94        \\ \hline
+LUT, xor & 73         & 105      & 145      & 131       \\ \hline
+offset   & 80         & 118      & 150      & 135       \\ \hline
+AVX2     & 82         & 120      & 159      & 145       \\ \hline
+\end{tabular}
+\end{table}
+
 \section{Заключение}
 
 Текст заключения.
