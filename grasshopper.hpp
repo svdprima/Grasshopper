@@ -6,6 +6,7 @@
 #include <utility>
 #include <cstdlib>
 #include <cstdint>
+#include <stdexcept>
 #include <immintrin.h>
 
 template<typename T>
